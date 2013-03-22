@@ -1,0 +1,18 @@
+<idea-plugin version="2">
+  <id>copy.on.steroids</id>
+  <name>Enhanced 'Copy' action</name>
+  <version>1.0</version>
+
+  <description><![CDATA[
+      Enhances ide 'Copy' action with RTF text
+      ]]></description>
+
+  <idea-version since-build="129.60"/>
+
+  <depends>com.intellij.modules.lang</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <copyPastePostProcessor implementation="org.denis.CopyPasteSyntaxAwareProcessor"/>
+  </extensions>
+
+</idea-plugin>
