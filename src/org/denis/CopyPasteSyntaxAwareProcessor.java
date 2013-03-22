@@ -27,6 +27,8 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
 
   private static final String HEADER_PREFIX = "{\\rtf1\\ansi\\deff0";
   private static final String HEADER_SUFFIX = "\n}";
+  private static final String SECTION_PREFIX = "\n\\s0\\box";
+  private static final String SECTION_SUFFIX = "\\par";
   private static final String TAB           = "\\tab";
   private static final String NEW_LINE      = "\\line\n";
   private static final String BOLD          = "\\b";
@@ -109,6 +111,17 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
       myDefaultBackgroundColor = colorsScheme.getDefaultBackground();
       myColorTable = new ColorTable();
       myFontTable = new FontTable();
+      
+      buffer.append(SECTION_PREFIX).append(myColorTable.getCode(myDefaultBackgroundColor, false)).append("\n");
+    }
+
+    String finish() {
+      buffer.append(SECTION_SUFFIX);
+      buffer.insert(0, myFontTable.getTableDescription());
+      buffer.insert(0, myColorTable.getTableDescription());
+      buffer.insert(0, HEADER_PREFIX);
+      buffer.append(HEADER_SUFFIX);
+      return buffer.toString();
     }
 
     void onNewSelectionLine() {
@@ -153,7 +166,7 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
       if (backgroundColor == null) {
         backgroundColor = myDefaultBackgroundColor;
       }
-      if (myPrevBackgroundColor == null || !myPrevBackgroundColor.equals(backgroundColor)) {
+      if (myPrevBackgroundColor != null && !myPrevBackgroundColor.equals(backgroundColor)) {
         appendFormatRule(myColorTable.getCode(backgroundColor, false));
         myPrevBackgroundColor = backgroundColor;
       }
@@ -213,6 +226,7 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
         switch (c) {
           case '\t': buffer.append(TAB); continue;
           case ' ': buffer.append(' '); continue;
+          case '\\':
           case '{':
           case '}':
             buffer.append('\\');
@@ -249,14 +263,6 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
       }
       buffer.append(ruleText).append('\n');
     }
-
-    String finish() {
-      buffer.insert(0, myFontTable.getTableDescription());
-      buffer.insert(0, myColorTable.getTableDescription());
-      buffer.insert(0, HEADER_PREFIX);
-      buffer.append(HEADER_SUFFIX);
-      return buffer.toString();
-    }
   }
 
   private static class ColorTable {
@@ -275,7 +281,7 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
         prefix = "";
       }
       else {
-        prefix = "\\chcbpat" + (i + 1);
+        prefix = "\\cbpat" + (i + 1);
       }
       return prefix + String.format("\\c%c%d", foreground ? 'f' : 'b', i + 1);
     }
