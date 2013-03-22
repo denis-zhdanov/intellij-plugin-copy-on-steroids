@@ -270,7 +270,14 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
         myColors.add(color);
         i = myColors.size() - 1;
       }
-      return String.format("\\c%c%d", foreground ? 'f' : 'b', i + 1);
+      final String prefix;
+      if (foreground) {
+        prefix = "";
+      }
+      else {
+        prefix = "\\chcbpat" + (i + 1);
+      }
+      return prefix + String.format("\\c%c%d", foreground ? 'f' : 'b', i + 1);
     }
 
     @NotNull
