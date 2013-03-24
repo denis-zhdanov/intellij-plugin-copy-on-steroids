@@ -5,10 +5,14 @@ import com.intellij.ide.highlighter.HighlighterFactory;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
+import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.highlighter.HighlighterIterator;
+import com.intellij.openapi.editor.impl.DocumentMarkupModel;
 import com.intellij.openapi.editor.impl.FontInfo;
+import com.intellij.openapi.editor.impl.IterationState;
+import com.intellij.openapi.editor.markup.MarkupModel;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
@@ -16,11 +20,13 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.StringBuilderSpinAllocator;
 import com.intellij.util.containers.ContainerUtilRt;
+import org.denis.model.OutputInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.awt.datatransfer.Transferable;
+import java.util.Collections;
 import java.util.List;
 
 public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<SyntaxAwareTransferableData> {
@@ -38,13 +44,45 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
   @Nullable
   @Override
   public SyntaxAwareTransferableData collectTransferableData(PsiFile file, Editor editor, int[] startOffsets, int[] endOffsets) {
+    final List<OutputInfo> output = ContainerUtilRt.newArrayList();
     CharSequence text = editor.getDocument().getCharsSequence();
     EditorHighlighter highlighter = HighlighterFactory.createHighlighter(file.getProject(), file.getVirtualFile());
     highlighter.setText(text);
+    MarkupModel markupModel = DocumentMarkupModel.forDocument(editor.getDocument(), file.getProject(), false);
+    
+    List<SegmentInfo> lexerInfos = ContainerUtilRt.newArrayList();
+    List<SegmentInfo> parserInfos = ContainerUtilRt.newArrayList();
     Context context = new Context(editor);
     for (int i = 0; i < startOffsets.length; i++) {
+      lexerInfos.clear();
+      parserInfos.clear();
+      HighlighterIterator highlighterIterator = highlighter.createIterator(startOffsets[i]);
+      SegmentInfo prev = null;
+      do {
+        if (lexerInfos.isEmpty()) {
+          if (highlighter != null) {
+            if (highlighter.at)
+          }
+        }
+      }
+      while (!lexerInfos.isEmpty() || parserInfos.isEmpty())
+      
       int startOffset = startOffsets[i];
       int endOffset = endOffsets[i];
+      
+      
+      IterationState iterationState = new IterationState((EditorEx)editor, startOffset, endOffset, false);
+      try {
+        while (!iterationState.atEnd()) {
+          int s = iterationState.getStartOffset();
+          int e = iterationState.getEndOffset();
+          TextAttributes attributes = iterationState.getMergedAttributes();
+          iterationState.advance();
+        }
+      }
+      finally {
+        iterationState.dispose();
+      }
       HighlighterIterator iterator = highlighter.createIterator(startOffset);
       context.onNewSelectionLine();
       while (!iterator.atEnd()) {
@@ -325,6 +363,55 @@ public class CopyPasteSyntaxAwareProcessor implements CopyPastePostProcessor<Syn
       }
       buffer.append("}");
       return buffer.toString();
+    }
+  }
+  
+  private static class SegmentInfo {
+    
+    public final Color foreground;
+    public final Color background;
+    public final String fontName;
+    public final int fontStyle;
+    public final int startOffset;
+    public final int endOffset;
+
+    SegmentInfo(Color foreground, Color background, String fontName, int fontStyle, int startOffset, int endOffset) {
+      this.foreground = foreground;
+      this.background = background;
+      this.fontName = fontName;
+      this.fontStyle = fontStyle;
+      this.startOffset = startOffset;
+      this.endOffset = endOffset;
+    }
+
+    @NotNull
+    public static List<SegmentInfo> produce(@NotNull TextAttributes attribute, @NotNull Editor editor, int start, int end) {
+      if (end <= start) {
+        return Collections.emptyList();
+      }
+      List<SegmentInfo> result = ContainerUtilRt.newArrayList();
+      CharSequence text = editor.getDocument().getCharsSequence();
+      int currentStart = start;
+      String fontName = EditorUtil.fontForChar(text.charAt(start), attribute.getFontType(), editor).getFont().getFontName();
+      String candidateFontName;
+      for (int i = start + 1; i < end; i++) {
+        candidateFontName = EditorUtil.fontForChar(text.charAt(i), attribute.getFontType(), editor).getFont().getFontName();
+        if (!candidateFontName.equals(fontName)) {
+          result.add(new SegmentInfo(
+            attribute.getForegroundColor(), attribute.getBackgroundColor(), fontName, attribute.getFontType(), currentStart, i
+          ));
+          currentStart = i;
+          fontName = candidateFontName;
+        }
+      }
+
+      if (currentStart < end) {
+        result.add(new SegmentInfo(
+          attribute.getForegroundColor(), attribute.getBackgroundColor(), fontName, attribute.getFontType(), currentStart, end
+        ));
+      }
+      
+      return result;
     }
   }
 }
