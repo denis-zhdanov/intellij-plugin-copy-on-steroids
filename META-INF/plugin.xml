@@ -18,7 +18,7 @@
   <depends>com.intellij.modules.lang</depends>
 
   <extensions defaultExtensionNs="com.intellij">
-    <copyPastePostProcessor implementation="org.denis.CopyPasteSyntaxAwareProcessor"/>
+    <copyPastePostProcessor implementation="org.denis.RtfCopyPasteProcessor"/>
   </extensions>
 
 </idea-plugin>

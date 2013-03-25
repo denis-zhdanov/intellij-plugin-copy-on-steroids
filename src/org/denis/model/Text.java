@@ -11,9 +11,9 @@ public class Text implements OutputInfo {
   private final int myStartOffset;
   private final int myEndOffset;
 
-  public Text(int endOffset, int startOffset) {
-    myEndOffset = endOffset;
+  public Text(int startOffset, int endOffset) {
     myStartOffset = startOffset;
+    myEndOffset = endOffset;
   }
 
   @Override
@@ -27,5 +27,10 @@ public class Text implements OutputInfo {
 
   public int getEndOffset() {
     return myEndOffset;
+  }
+
+  @Override
+  public String toString() {
+    return myStartOffset + "-" + myEndOffset;
   }
 }

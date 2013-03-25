@@ -4,11 +4,11 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Denis Zhdanov
- * @since 3/23/13 3:23 PM
+ * @since 3/25/13 6:48 PM
  */
-public class Foreground extends AbstractFlyweightInfo {
+public class FontFamilyName extends AbstractFlyweightInfo {
 
-  public Foreground(int id) {
+  public FontFamilyName(int id) {
     super(id);
   }
 

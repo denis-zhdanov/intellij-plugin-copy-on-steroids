@@ -6,10 +6,10 @@ import org.jetbrains.annotations.NotNull;
  * @author Denis Zhdanov
  * @since 3/23/13 3:23 PM
  */
-public class Background extends AbstractColorInfo {
+public class Background extends AbstractFlyweightInfo {
 
-  public Background(@NotNull ColorRegistry registry, int id) {
-    super(registry, id);
+  public Background(int id) {
+    super(id);
   }
 
   @Override

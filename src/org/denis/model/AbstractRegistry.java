@@ -4,6 +4,8 @@ import gnu.trove.TIntObjectHashMap;
 import gnu.trove.TObjectIntHashMap;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
+
 /**
  * @author Denis Zhdanov
  * @since 3/23/13 3:17 PM
@@ -30,12 +32,18 @@ public abstract class AbstractRegistry<T> {
       ));
     }
     int id = myIdsByData.get(data);
-    if (id < 0) {
+    if (id <= 0) {
       id = myIdsByData.size() + 1;
       myDataById.put(id, data);
       myIdsByData.put(data, id);
     }
     return id;
+  }
+
+  public int[] getAllIds() {
+    int[] result = myDataById.keys();
+    Arrays.sort(result);
+    return result;
   }
 
   public void seal() {
