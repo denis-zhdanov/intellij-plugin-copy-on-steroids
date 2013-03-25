@@ -13,12 +13,12 @@ import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.highlighter.HighlighterIterator;
 import com.intellij.openapi.editor.impl.DocumentMarkupModel;
+import com.intellij.openapi.editor.markup.HighlighterLayer;
 import com.intellij.openapi.editor.markup.MarkupModel;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.PsiFile;
-import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.ContainerUtilRt;
 import org.denis.model.*;
 import org.jetbrains.annotations.NotNull;
@@ -48,14 +48,19 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       shift += prevEndOffset - startOffsets[i];
       prevEndOffset = endOffsets[i];
       context.reset(shift);
-      Iterator<SegmentInfo> it = aggregateSyntaxInfo(wrap(highlighter, editor, startOffsets[i], endOffsets[i]),
-                                                     wrap(markupModel, editor, startOffsets[i], endOffsets[i]));
-      while (it.hasNext()) {
-        SegmentInfo info = it.next();
-        if (info.startOffset >= endOffsets[i]) {
-          break;
+      DisposableIterator<SegmentInfo> it = aggregateSyntaxInfo(wrap(highlighter, editor, startOffsets[i], endOffsets[i]),
+                                                               wrap(markupModel, editor, startOffsets[i], endOffsets[i]));
+      try {
+        while (it.hasNext()) {
+          SegmentInfo info = it.next();
+          if (info.startOffset >= endOffsets[i]) {
+            break;
+          }
+          context.onNewData(info);
         }
-        context.onNewData(info);
+      }
+      finally {
+        it.dispose();
       }
       context.onIterationEnd(endOffsets[i]);
     }
@@ -65,14 +70,14 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   @Nullable
   protected abstract T build(@NotNull SyntaxInfo info);
 
-  private static Iterator<SegmentInfo> aggregateSyntaxInfo(@NotNull final Iterator<List<SegmentInfo>>... iterators) {
-    return new Iterator<SegmentInfo>() {
+  private static DisposableIterator<SegmentInfo> aggregateSyntaxInfo(@NotNull final DisposableIterator<List<SegmentInfo>>... iterators) {
+    return new DisposableIterator<SegmentInfo>() {
 
       @NotNull private final Queue<SegmentInfo> myInfos = new PriorityQueue<SegmentInfo>();
-      @NotNull private final Map<SegmentInfo, Iterator<List<SegmentInfo>>> myEndMarkers = ContainerUtilRt.newHashMap();
+      @NotNull private final Map<SegmentInfo, DisposableIterator<List<SegmentInfo>>> myEndMarkers = ContainerUtilRt.newHashMap();
 
       {
-        for (Iterator<List<SegmentInfo>> iterator : iterators) {
+        for (DisposableIterator<List<SegmentInfo>> iterator : iterators) {
           extract(iterator);
         }
       }
@@ -85,7 +90,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       @Override
       public SegmentInfo next() {
         SegmentInfo result = myInfos.remove();
-        Iterator<List<SegmentInfo>> iterator = myEndMarkers.get(result);
+        DisposableIterator<List<SegmentInfo>> iterator = myEndMarkers.remove(result);
         if (iterator != null) {
           extract(iterator);
         }
@@ -97,7 +102,14 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         throw new UnsupportedOperationException();
       }
 
-      private void extract(@NotNull Iterator<List<SegmentInfo>> iterator) {
+      @Override
+      public void dispose() {
+        for (DisposableIterator<List<SegmentInfo>> iterator : iterators) {
+          iterator.dispose();
+        }
+      }
+
+      private void extract(@NotNull DisposableIterator<List<SegmentInfo>> iterator) {
         while (iterator.hasNext()) {
           List<SegmentInfo> infos = iterator.next();
           if (infos.isEmpty()) {
@@ -110,16 +122,77 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       }
     };
   }
-  
+
   @NotNull
-  private static Iterator<List<SegmentInfo>> wrap(@NotNull final EditorHighlighter highlighter,
-                                                  @NotNull final Editor editor,
-                                                  final int startOffset,
-                                                  final int endOffset)
+  private static DisposableIterator<List<SegmentInfo>> wrap(@NotNull final EditorHighlighter highlighter,
+                                                            @NotNull final Editor editor,
+                                                            final int startOffset,
+                                                            final int endOffset)
   {
     final HighlighterIterator highlighterIterator = highlighter.createIterator(startOffset);
-    return new Iterator<List<SegmentInfo>>() {
-      
+    return new DisposableIterator<List<SegmentInfo>>() {
+
+      @Nullable private List<SegmentInfo> myCached;
+
+      @Override
+      public boolean hasNext() {
+        return myCached != null || updateCached();
+      }
+
+      @Override
+      public List<SegmentInfo> next() {
+        if (myCached != null) {
+          List<SegmentInfo> result = myCached;
+          myCached = null;
+          return result;
+        }
+
+        if (!updateCached()) {
+          throw new UnsupportedOperationException();
+        }
+        return myCached;
+      }
+
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public void dispose() {
+      }
+
+      private boolean updateCached() {
+        if (highlighterIterator.atEnd()) {
+          return false;
+        }
+        int tokenStart = Math.max(highlighterIterator.getStart(), startOffset);
+        if (tokenStart >= endOffset) {
+          return false;
+        }
+
+        TextAttributes attributes = highlighterIterator.getTextAttributes();
+        int tokenEnd = Math.min(highlighterIterator.getEnd(), endOffset);
+        myCached = SegmentInfo.produce(attributes, editor, tokenStart, tokenEnd);
+        highlighterIterator.advance();
+        return true;
+      }
+    };
+  }
+
+  @SuppressWarnings("unchecked")
+  @NotNull
+  private static DisposableIterator<List<SegmentInfo>> wrap(@NotNull MarkupModel model,
+                                                            @NotNull final Editor editor,
+                                                            final int startOffset,
+                                                            final int endOffset)
+  {
+    if (!(model instanceof MarkupModelEx)) {
+      return DisposableIterator.EMPTY;
+    }
+    final DisposableIterator<RangeHighlighterEx> iterator = ((MarkupModelEx)model).overlappingIterator(startOffset, endOffset);
+    return new DisposableIterator<List<SegmentInfo>>() {
+
       @Nullable private List<SegmentInfo> myCached;
       
       @Override
@@ -146,60 +219,9 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         throw new UnsupportedOperationException();
       }
 
-      private boolean updateCached() {
-        if (highlighterIterator.atEnd()) {
-          return false;
-        }
-        int tokenStart = Math.max(highlighterIterator.getStart(), startOffset);
-        if (tokenStart >= endOffset) {
-          return false;
-        }
-        
-        TextAttributes attributes = highlighterIterator.getTextAttributes();
-        int tokenEnd = Math.min(highlighterIterator.getEnd(), endOffset);
-        myCached = SegmentInfo.produce(attributes, editor, tokenStart, tokenEnd);
-        highlighterIterator.advance();
-        return true;
-      }
-    };
-  }
-
-  @NotNull
-  private static Iterator<List<SegmentInfo>> wrap(@NotNull MarkupModel model,
-                                                  @NotNull final Editor editor,
-                                                  final int startOffset,
-                                                  final int endOffset)
-  {
-    if (!(model instanceof MarkupModelEx)) {
-      return ContainerUtil.emptyIterator();
-    }
-    final DisposableIterator<RangeHighlighterEx> iterator = ((MarkupModelEx)model).overlappingIterator(startOffset, endOffset);
-    return new Iterator<List<SegmentInfo>>() {
-
-      @Nullable private List<SegmentInfo> myCached;
-      
       @Override
-      public boolean hasNext() {
-        return myCached != null || iterator.hasNext();
-      }
-
-      @Override
-      public List<SegmentInfo> next() {
-        if (myCached != null) {
-          List<SegmentInfo> result = myCached;
-          myCached = null;
-          return result;
-        }
-
-        if (!updateCached()) {
-          throw new UnsupportedOperationException();
-        }
-        return myCached;
-      }
-
-      @Override
-      public void remove() {
-        throw new UnsupportedOperationException();
+      public void dispose() {
+        iterator.dispose();
       }
 
       private boolean updateCached() {
@@ -208,7 +230,11 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         }
         
         RangeHighlighterEx highlighter = iterator.next();
-        while (highlighter == null || !highlighter.isValid() || highlighter.getTextAttributes() == null) {
+        while (highlighter == null
+               || !highlighter.isValid()
+               || highlighter.getTextAttributes() == null
+               || !isInterestedHighlightLayer(highlighter.getLayer()))
+        {
           if (!iterator.hasNext()) {
             return false;
           }
@@ -225,6 +251,10 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         //noinspection ConstantConditions
         myCached = SegmentInfo.produce(attributes, editor, tokenStart, tokenEnd);
         return true;
+      }
+      
+      private boolean isInterestedHighlightLayer(int layer) {
+        return layer == HighlighterLayer.SYNTAX || layer == HighlighterLayer.ADDITIONAL_SYNTAX;
       }
     };
   }
@@ -252,18 +282,21 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     @NotNull private final ColorRegistry    myColorRegistry    = new ColorRegistry();
     @NotNull private final FontNameRegistry myFontNameRegistry = new FontNameRegistry();
 
-    @NotNull private final Color myDefaultForeground;
-    @NotNull private final Color myDefaultBackground;
+    @NotNull private final CharSequence myText;
+    @NotNull private final Color        myDefaultForeground;
+    @NotNull private final Color        myDefaultBackground;
 
     @Nullable private Color  myBackground;
     @Nullable private Color  myForeground;
     @Nullable private String myFontFamilyName;
 
     private int myFontStyle;
+    private int myFontSize;
     private int myStartOffset;
     private int myOffsetShift;
 
     Context(@NotNull Editor editor) {
+      myText = editor.getDocument().getCharsSequence();
       EditorColorsScheme colorsScheme = editor.getColorsScheme();
       myDefaultForeground = colorsScheme.getDefaultForeground();
       myDefaultBackground = colorsScheme.getDefaultBackground();
@@ -274,6 +307,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       myForeground = null;
       myFontFamilyName = null;
       myFontStyle = Font.PLAIN;
+      myFontSize = -1;
       myStartOffset = -1;
       myOffsetShift = offsetShift;
     }
@@ -284,18 +318,40 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         return;
       }
 
+      if (containsWhiteSpacesOnly(info)) {
+        return;
+      }
+
       processBackground(info);
       processForeground(info);
       processFontFamilyName(info);
       processFontStyle(info);
+      processFontSize(info);
+    }
 
-      // TODO den add font size support.
+    private boolean containsWhiteSpacesOnly(@NotNull SegmentInfo info) {
+      for (int i = info.startOffset, limit = info.endOffset; i < limit; i++) {
+        char c = myText.charAt(i);
+        if (c != ' ' && c != '\t' && c != '\n') {
+          return false;
+        }
+      }
+      return true;
     }
 
     private void processFontStyle(@NotNull SegmentInfo info) {
       if (info.fontStyle != myFontStyle) {
         addTextIfPossible(info.startOffset);
-        myOutputInfos.add(new FontStyle(myFontStyle));
+        myOutputInfos.add(new FontStyle(info.fontStyle));
+        myFontStyle = info.fontStyle;
+      }
+    }
+
+    private void processFontSize(@NotNull SegmentInfo info) {
+      if (info.fontSize != myFontSize) {
+        addTextIfPossible(info.startOffset);
+        myOutputInfos.add(new FontSize(info.fontSize));
+        myFontSize = info.fontSize;
       }
     }
 
@@ -319,7 +375,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         Color c = info.foreground == null ? myDefaultForeground : info.foreground;
         if (!myForeground.equals(c)) {
           addTextIfPossible(info.startOffset);
-          myOutputInfos.add(new Foreground(myColorRegistry.getId(myForeground)));
+          myOutputInfos.add(new Foreground(myColorRegistry.getId(c)));
           myForeground = c;
         }
       }
@@ -347,6 +403,11 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       myFontStyle = info.fontStyle;
       if (myFontStyle != Font.PLAIN) {
         myOutputInfos.add(new FontStyle(myFontStyle));
+      }
+
+      myFontSize = info.fontSize;
+      if (myFontSize > 0) {
+        myOutputInfos.add(new FontSize(myFontSize));
       }
 
       myBackground = info.background;
@@ -403,6 +464,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     @NotNull public final  String fontFamilyName;
 
     public final int fontStyle;
+    public final int fontSize;
     public final int startOffset;
     public final int endOffset;
 
@@ -410,6 +472,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
                 @Nullable Color background,
                 @NotNull String fontFamilyName,
                 int fontStyle,
+                int fontSize,
                 int startOffset,
                 int endOffset)
     {
@@ -417,6 +480,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       this.background = background;
       this.fontFamilyName = fontFamilyName;
       this.fontStyle = fontStyle;
+      this.fontSize = fontSize;
       this.startOffset = startOffset;
       this.endOffset = endOffset;
     }
@@ -429,22 +493,38 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       List<SegmentInfo> result = ContainerUtilRt.newArrayList();
       CharSequence text = editor.getDocument().getCharsSequence();
       int currentStart = start;
-      String fontFamilyName = EditorUtil.fontForChar(text.charAt(start), attribute.getFontType(), editor).getFont().getFamily();
+      Font font = EditorUtil.fontForChar(text.charAt(start), attribute.getFontType(), editor).getFont();
+      String currentFontFamilyName = font.getFamily();
+      int currentFontSize = font.getSize();
       String candidateFontFamilyName;
+      int candidateFontSize;
       for (int i = start + 1; i < end; i++) {
-        candidateFontFamilyName = EditorUtil.fontForChar(text.charAt(i), attribute.getFontType(), editor).getFont().getFamily();
-        if (!candidateFontFamilyName.equals(fontFamilyName)) {
-          result.add(new SegmentInfo(
-            attribute.getForegroundColor(), attribute.getBackgroundColor(), fontFamilyName, attribute.getFontType(), currentStart, i
+        font = EditorUtil.fontForChar(text.charAt(i), attribute.getFontType(), editor).getFont();
+        candidateFontFamilyName = font.getFamily();
+        candidateFontSize = font.getSize();
+        if (!candidateFontFamilyName.equals(currentFontFamilyName) || currentFontSize != candidateFontSize) {
+          result.add(new SegmentInfo(attribute.getForegroundColor(),
+                                     attribute.getBackgroundColor(),
+                                     currentFontFamilyName,
+                                     attribute.getFontType(),
+                                     currentFontSize,
+                                     currentStart,
+                                     i
           ));
           currentStart = i;
-          fontFamilyName = candidateFontFamilyName;
+          currentFontFamilyName = candidateFontFamilyName;
+          currentFontSize = candidateFontSize;
         }
       }
 
       if (currentStart < end) {
-        result.add(new SegmentInfo(
-          attribute.getForegroundColor(), attribute.getBackgroundColor(), fontFamilyName, attribute.getFontType(), currentStart, end
+        result.add(new SegmentInfo(attribute.getForegroundColor(),
+                                   attribute.getBackgroundColor(),
+                                   currentFontFamilyName,
+                                   attribute.getFontType(),
+                                   currentFontSize,
+                                   currentStart,
+                                   end
         ));
       }
 
@@ -462,6 +542,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       result = 31 * result + (background != null ? background.hashCode() : 0);
       result = 31 * result + fontFamilyName.hashCode();
       result = 31 * result + fontStyle;
+      result = 31 * result + fontSize;
       result = 31 * result + startOffset;
       result = 31 * result + endOffset;
       return result;
@@ -477,6 +558,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
 
       if (endOffset != info.endOffset) return false;
       if (fontStyle != info.fontStyle) return false;
+      if (fontSize != info.fontSize) return false;
       if (startOffset != info.startOffset) return false;
       if (background != null ? !background.equals(info.background) : info.background != null) return false;
       if (!fontFamilyName.equals(info.fontFamilyName)) return false;

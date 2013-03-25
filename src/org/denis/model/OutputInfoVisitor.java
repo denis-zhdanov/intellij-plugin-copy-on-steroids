@@ -13,4 +13,5 @@ public interface OutputInfoVisitor {
   void visit(@NotNull Background color);
   void visit(@NotNull FontFamilyName name);
   void visit(@NotNull FontStyle style);
+  void visit(@NotNull FontSize size);
 }

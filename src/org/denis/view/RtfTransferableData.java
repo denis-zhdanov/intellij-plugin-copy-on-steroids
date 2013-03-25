@@ -161,6 +161,10 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
     buffer.append("\\f").append(id);
   }
 
+  private static void saveFontSize(@NotNull StringBuilder buffer, int size) {
+    buffer.append("\\fs").append(size * 2);
+  }
+
   private static class MyVisitor implements OutputInfoVisitor {
 
     @NotNull private final StringBuilder myBuffer;
@@ -223,6 +227,12 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
     }
 
     @Override
+    public void visit(@NotNull FontSize size) {
+      saveFontSize(myBuffer, size.getSize());
+      myFontSize = size.getSize();
+    }
+
+    @Override
     public void visit(@NotNull FontStyle style) {
       // Reset formatting settings
       myBuffer.append(PLAIN);
@@ -236,6 +246,9 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
       }
       if (myFontNameId >= 0) {
         saveFontName(myBuffer, myFontNameId);
+      }
+      if (myFontSize > 0) {
+        saveFontSize(myBuffer, myFontSize);
       }
 
       myFontStyle = style.getStyle();
