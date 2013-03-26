@@ -39,10 +39,15 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   @Nullable
   @Override
   public T collectTransferableData(PsiFile file, Editor editor, int[] startOffsets, int[] endOffsets) {
+    CopyOnSteroidSettings settings = CopyOnSteroidSettings.getInstance();
+    if (!isEnabled(settings)) {
+      return null;
+    }
+    
     CharSequence text = editor.getDocument().getCharsSequence();
     EditorHighlighter highlighter = HighlighterFactory.createHighlighter(file.getProject(), file.getVirtualFile());
     highlighter.setText(text);
-    EditorColorsScheme schemeToUse = CopyOnSteroidSettings.getInstance().getColorsScheme(editor);
+    EditorColorsScheme schemeToUse = settings.getColorsScheme(editor);
     highlighter.setColorScheme(schemeToUse);
     MarkupModel markupModel = DocumentMarkupModel.forDocument(editor.getDocument(), file.getProject(), false);
     Context context = new Context(editor, schemeToUse);
@@ -75,6 +80,8 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
 
   @Nullable
   protected abstract T build(@NotNull SyntaxInfo info);
+
+  protected abstract boolean isEnabled(@NotNull CopyOnSteroidSettings settings);
 
   private static DisposableIterator<SegmentInfo> aggregateSyntaxInfo(@NotNull Editor editor,
                                                                      @NotNull final DisposableIterator<List<SegmentInfo>>... iterators)

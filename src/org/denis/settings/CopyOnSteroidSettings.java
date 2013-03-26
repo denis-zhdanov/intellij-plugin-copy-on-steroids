@@ -21,7 +21,8 @@ public class CopyOnSteroidSettings implements PersistentStateComponent<CopyOnSte
 
   @NotNull public static final String ACTIVE_GLOBAL_SCHEME_MARKER = "__ACTIVE_GLOBAL_SCHEME__";
 
-  @Nullable private String mySchemeName;
+  private String  mySchemeName = ACTIVE_GLOBAL_SCHEME_MARKER;
+  private boolean myProvideRtf = true;
 
   @NotNull
   public static CopyOnSteroidSettings getInstance() {
@@ -67,9 +68,15 @@ public class CopyOnSteroidSettings implements PersistentStateComponent<CopyOnSte
     return mySchemeName == null ? ACTIVE_GLOBAL_SCHEME_MARKER : mySchemeName;
   }
 
-  @SuppressWarnings("UnusedDeclaration")
   public void setSchemeName(@Nullable String schemeName) {
-    // Used by IJ serialization via reflection.
     mySchemeName = schemeName;
+  }
+
+  public boolean isProvideRtf() {
+    return myProvideRtf;
+  }
+
+  public void setProvideRtf(boolean provideRtf) {
+    myProvideRtf = provideRtf;
   }
 }

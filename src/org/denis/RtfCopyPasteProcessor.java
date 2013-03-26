@@ -1,6 +1,7 @@
 package org.denis;
 
 import org.denis.model.SyntaxInfo;
+import org.denis.settings.CopyOnSteroidSettings;
 import org.denis.view.RtfTransferableData;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,5 +16,10 @@ public class RtfCopyPasteProcessor extends AbstractCopyPasteSyntaxAwareProcessor
   @Override
   protected RtfTransferableData build(@NotNull SyntaxInfo info) {
     return new RtfTransferableData(info);
+  }
+
+  @Override
+  protected boolean isEnabled(@NotNull CopyOnSteroidSettings settings) {
+    return settings.isProvideRtf();
   }
 }
