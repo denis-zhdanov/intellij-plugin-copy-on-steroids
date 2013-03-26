@@ -1,5 +1,7 @@
 package org.denis;
 
+import com.intellij.codeInsight.daemon.impl.HighlightInfo;
+import com.intellij.codeInsight.daemon.impl.HighlightInfoType;
 import com.intellij.codeInsight.editorActions.CopyPastePostProcessor;
 import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
 import com.intellij.ide.highlighter.HighlighterFactory;
@@ -21,6 +23,7 @@ import com.intellij.openapi.util.Ref;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.containers.ContainerUtilRt;
 import org.denis.model.*;
+import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,8 +42,10 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     CharSequence text = editor.getDocument().getCharsSequence();
     EditorHighlighter highlighter = HighlighterFactory.createHighlighter(file.getProject(), file.getVirtualFile());
     highlighter.setText(text);
+    EditorColorsScheme schemeToUse = CopyOnSteroidSettings.getInstance().getColorsScheme(editor);
+    highlighter.setColorScheme(schemeToUse);
     MarkupModel markupModel = DocumentMarkupModel.forDocument(editor.getDocument(), file.getProject(), false);
-    Context context = new Context(editor);
+    Context context = new Context(editor, schemeToUse);
     int shift = 0;
     int prevEndOffset = 0;
     
@@ -50,7 +55,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       context.reset(shift);
       DisposableIterator<SegmentInfo> it = aggregateSyntaxInfo(editor,
                                                                wrap(highlighter, editor, startOffsets[i], endOffsets[i]),
-                                                               wrap(markupModel, editor, startOffsets[i], endOffsets[i]));
+                                                               wrap(markupModel, editor, schemeToUse, startOffsets[i], endOffsets[i]));
       try {
         while (it.hasNext()) {
           SegmentInfo info = it.next();
@@ -222,6 +227,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   @NotNull
   private static DisposableIterator<List<SegmentInfo>> wrap(@NotNull MarkupModel model,
                                                             @NotNull final Editor editor,
+                                                            @NotNull final EditorColorsScheme colorsScheme,
                                                             final int startOffset,
                                                             final int endOffset)
   {
@@ -229,7 +235,6 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       return DisposableIterator.EMPTY;
     }
     final DisposableIterator<RangeHighlighterEx> iterator = ((MarkupModelEx)model).overlappingIterator(startOffset, endOffset);
-    EditorColorsScheme colorsScheme = editor.getColorsScheme();
     final Color defaultForeground = colorsScheme.getDefaultForeground();
     final Color defaultBackground = colorsScheme.getDefaultBackground();
     return new DisposableIterator<List<SegmentInfo>>() {
@@ -286,8 +291,19 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         if (tokenStart >= endOffset) {
           return false;
         }
-
-        TextAttributes attributes = highlighter.getTextAttributes();
+        
+        TextAttributes attributes = null;
+        Object tooltip = highlighter.getErrorStripeTooltip();
+        if (tooltip instanceof HighlightInfo) {
+          HighlightInfoType type = ((HighlightInfo)tooltip).type;
+          if (type != null) {
+            attributes = colorsScheme.getAttributes(type.getAttributesKey());
+          }
+        }
+        if (attributes == null) {
+          attributes = highlighter.getTextAttributes();
+        }
+        
         if (attributes == null) {
           return updateCached();
         }
@@ -348,11 +364,10 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     private int myStartOffset;
     private int myOffsetShift;
 
-    Context(@NotNull Editor editor) {
+    Context(@NotNull Editor editor, @NotNull EditorColorsScheme scheme) {
       myText = editor.getDocument().getCharsSequence();
-      EditorColorsScheme colorsScheme = editor.getColorsScheme();
-      myDefaultForeground = colorsScheme.getDefaultForeground();
-      myDefaultBackground = colorsScheme.getDefaultBackground();
+      myDefaultForeground = scheme.getDefaultForeground();
+      myDefaultBackground = scheme.getDefaultBackground();
     }
 
     public void reset(int offsetShift) {
@@ -586,7 +601,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
 
     @Override
-    public int compareTo(SegmentInfo o) {
+    public int compareTo(@NotNull SegmentInfo o) {
       return startOffset - o.startOffset;
     }
 

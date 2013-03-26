@@ -18,8 +18,17 @@
   <idea-version since-build="123.69"/>
 
   <depends>com.intellij.modules.lang</depends>
-
+  
+  <application-components>
+    <component>
+      <implementation-class>org.denis.settings.CopyOnSteroidSettings</implementation-class>
+    </component>
+  </application-components>
+  
   <extensions defaultExtensionNs="com.intellij">
+    <applicationConfigurable instance="org.denis.settings.CopyOnSteroidsConfigurable"
+                             id="copy.on.steroids"
+                             displayName="'Copy' on Steroids"/>
     <copyPastePostProcessor implementation="org.denis.RtfCopyPasteProcessor"/>
   </extensions>
 
