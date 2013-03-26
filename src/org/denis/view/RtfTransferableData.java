@@ -23,8 +23,6 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
 
   @NotNull private static final String HEADER_PREFIX  = "{\\rtf1\\ansi\\deff0";
   @NotNull private static final String HEADER_SUFFIX  = "}";
-  @NotNull private static final String SECTION_PREFIX = "\n\\s0\\box";
-  @NotNull private static final String SECTION_SUFFIX = "\\par";
   @NotNull private static final String TAB            = "\\tab";
   @NotNull private static final String NEW_LINE       = "\\line\n";
   @NotNull private static final String BOLD           = "\\b";
@@ -136,10 +134,10 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
   }
 
   private void rectangularBackground(@NotNull StringBuilder buffer, @NotNull Runnable next) {
-    buffer.append(SECTION_PREFIX);
+    buffer.append("\n\\s0\\box\\brdrhair\\brdrcf").append(mySyntaxInfo.getDefaultForeground()).append("\\brsp317");
     saveBackground(buffer, mySyntaxInfo.getDefaultBackground());
     next.run();
-    buffer.append(SECTION_SUFFIX);
+    buffer.append("\\par");
   }
 
   private void content(@NotNull StringBuilder buffer, @NotNull String rawText) {

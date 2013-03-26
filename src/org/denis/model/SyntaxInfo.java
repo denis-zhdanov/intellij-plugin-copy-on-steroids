@@ -17,14 +17,17 @@ public class SyntaxInfo implements Serializable {
   @NotNull private final ColorRegistry    myColorRegistry;
   @NotNull private final FontNameRegistry myFontNameRegistry;
 
+  private final int myDefaultForeground;
   private final int myDefaultBackground;
 
   public SyntaxInfo(@NotNull List<OutputInfo> infos,
+                    int defaultForeground,
                     int defaultBackground,
                     @NotNull FontNameRegistry fontNameRegistry,
                     @NotNull ColorRegistry colorRegistry)
   {
     myOutputInfos = infos;
+    myDefaultForeground = defaultForeground;
     myDefaultBackground = defaultBackground;
     myFontNameRegistry = fontNameRegistry;
     myColorRegistry = colorRegistry;
@@ -43,6 +46,10 @@ public class SyntaxInfo implements Serializable {
   @NotNull
   public FontNameRegistry getFontNameRegistry() {
     return myFontNameRegistry;
+  }
+
+  public int getDefaultForeground() {
+    return myDefaultForeground;
   }
 
   public int getDefaultBackground() {

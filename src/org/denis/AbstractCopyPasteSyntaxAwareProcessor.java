@@ -48,7 +48,8 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       shift += prevEndOffset - startOffsets[i];
       prevEndOffset = endOffsets[i];
       context.reset(shift);
-      DisposableIterator<SegmentInfo> it = aggregateSyntaxInfo(wrap(highlighter, editor, startOffsets[i], endOffsets[i]),
+      DisposableIterator<SegmentInfo> it = aggregateSyntaxInfo(editor,
+                                                               wrap(highlighter, editor, startOffsets[i], endOffsets[i]),
                                                                wrap(markupModel, editor, startOffsets[i], endOffsets[i]));
       try {
         while (it.hasNext()) {
@@ -70,11 +71,17 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   @Nullable
   protected abstract T build(@NotNull SyntaxInfo info);
 
-  private static DisposableIterator<SegmentInfo> aggregateSyntaxInfo(@NotNull final DisposableIterator<List<SegmentInfo>>... iterators) {
+  private static DisposableIterator<SegmentInfo> aggregateSyntaxInfo(@NotNull Editor editor,
+                                                                     @NotNull final DisposableIterator<List<SegmentInfo>>... iterators)
+  {
+    EditorColorsScheme colorsScheme = editor.getColorsScheme();
+    final Color defaultForeground = colorsScheme.getDefaultForeground();
+    final Color defaultBackground = colorsScheme.getDefaultBackground();
     return new DisposableIterator<SegmentInfo>() {
 
       @NotNull private final Queue<SegmentInfo> myInfos = new PriorityQueue<SegmentInfo>();
-      @NotNull private final Map<SegmentInfo, DisposableIterator<List<SegmentInfo>>> myEndMarkers = ContainerUtilRt.newHashMap();
+      @NotNull private final Map<SegmentInfo, DisposableIterator<List<SegmentInfo>>> myEndMarkers
+        = new IdentityHashMap<SegmentInfo, DisposableIterator<List<SegmentInfo>>>();
 
       {
         for (DisposableIterator<List<SegmentInfo>> iterator : iterators) {
@@ -94,7 +101,38 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         if (iterator != null) {
           extract(iterator);
         }
+        while (!myInfos.isEmpty()) {
+          SegmentInfo toMerge = myInfos.peek();
+          if (toMerge.startOffset != result.startOffset || toMerge.endOffset != result.endOffset) {
+            break;
+          }
+          myInfos.remove();
+          result = merge(result, toMerge);
+          DisposableIterator<List<SegmentInfo>> it = myEndMarkers.remove(toMerge);
+          if (it != null) {
+            extract(it);
+          }
+        }
         return result;
+      }
+
+      @NotNull
+      private SegmentInfo merge(@NotNull SegmentInfo info1, @NotNull SegmentInfo info2) {
+        Color background = info1.background;
+        if (background == null || defaultBackground.equals(background)) {
+          background = info2.background;
+        }
+        
+        Color foreground = info1.foreground;
+        if (foreground == null || defaultForeground.equals(foreground)) {
+          foreground = info2.foreground;
+        }
+        
+        int fontStyle = info1.fontStyle;
+        if (fontStyle == Font.PLAIN) {
+          fontStyle = info2.fontStyle;
+        }
+        return new SegmentInfo(foreground, background, info1.fontFamilyName, fontStyle, info1.fontSize, info1.startOffset, info1.endOffset);
       }
 
       @Override
@@ -191,6 +229,9 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       return DisposableIterator.EMPTY;
     }
     final DisposableIterator<RangeHighlighterEx> iterator = ((MarkupModelEx)model).overlappingIterator(startOffset, endOffset);
+    EditorColorsScheme colorsScheme = editor.getColorsScheme();
+    final Color defaultForeground = colorsScheme.getDefaultForeground();
+    final Color defaultBackground = colorsScheme.getDefaultBackground();
     return new DisposableIterator<List<SegmentInfo>>() {
 
       @Nullable private List<SegmentInfo> myCached;
@@ -247,6 +288,18 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         }
 
         TextAttributes attributes = highlighter.getTextAttributes();
+        if (attributes == null) {
+          return updateCached();
+        }
+        Color foreground = attributes.getForegroundColor();
+        Color background = attributes.getBackgroundColor();
+        if ((foreground == null || defaultForeground.equals(foreground))
+            && (background == null || defaultBackground.equals(background))
+            && attributes.getFontType() == Font.PLAIN)
+        {
+          return updateCached();
+        }
+        
         int tokenEnd = Math.min(highlighter.getEndOffset(), endOffset);
         //noinspection ConstantConditions
         myCached = SegmentInfo.produce(attributes, editor, tokenStart, tokenEnd);
@@ -450,10 +503,11 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
 
     @NotNull
     public SyntaxInfo finish() {
-      // TODO den uncomment
-//      myColorRegistry.seal();
-//      myFontNameRegistry.seal();
-      return new SyntaxInfo(myOutputInfos, myColorRegistry.getId(myDefaultBackground), myFontNameRegistry, myColorRegistry);
+      int foreground = myColorRegistry.getId(myDefaultForeground);
+      int background = myColorRegistry.getId(myDefaultBackground);
+      myColorRegistry.seal();
+      myFontNameRegistry.seal();
+      return new SyntaxInfo(myOutputInfos, foreground, background, myFontNameRegistry, myColorRegistry);
     }
   }
 

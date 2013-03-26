@@ -1,7 +1,7 @@
 <idea-plugin version="2">
   <id>copy.on.steroids</id>
   <name>'Copy' on steroids</name>
-  <version>1.1</version>
+  <version>1.2</version>
   <vendor email="denzhdanov@gmail.com">Denis Zhdanov</vendor>
 
   <description><![CDATA[
@@ -9,7 +9,9 @@
    ]]></description>
 
   <change-notes><![CDATA[
-      Marks background color at OpenOffice-compatible mode
+      1. Syntax-level highlight info is exposed (e.g. colored fields);
+      2. Pasted text uses rectangular background (useful for pasting code
+         from dark colors scheme into an editor with light scheme);
   ]]></change-notes>
 
   <!--12.0.4-->
