@@ -76,7 +76,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
   public boolean isModified() {
     CopyOnSteroidSettings settings = CopyOnSteroidSettings.getInstance();
     if (!Comparing.equal(settings.getSchemeName(), myColorsSchemeComboBox.getSelectedItem())) {
-      return false;
+      return true;
     }
     return myCopyRtfCheckBox.isSelected() != settings.isProvideRtf();
   }
