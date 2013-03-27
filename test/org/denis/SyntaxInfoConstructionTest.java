@@ -6,6 +6,7 @@ import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.util.Ref;
 import com.intellij.testFramework.fixtures.LightCodeInsightFixtureTestCase;
+import com.intellij.util.containers.ContainerUtilRt;
 import org.denis.model.*;
 import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
@@ -23,6 +24,7 @@ import java.util.List;
 public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase {
 
   public void testBlockSelection() {
+    // Block selection ends implicit line feeds at line end and fills short line to max line width by white spaces.
     String text =
       "package org;\n" +
       "\n" +
@@ -58,12 +60,102 @@ public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase 
     assertEquals(expected, getSyntaxInfoForBlockSelection().getOutputInfos());
   }
 
+  public void testRegularSelection() {
+    // We want to exclude unnecessary indents from the pasted results.
+    String text =
+      "package org;\n" +
+      "\n" +
+      "public class TestClass {\n" +
+      "\n" +
+      "    int field;\n" +
+      "\n" +
+      "    public int getField() {\n" +
+      "        return field;\n" +
+      "    }\n" +
+      "}";
+    myFixture.configureByText("test.java", text);
+
+    int selectionStart = text.indexOf("public int");
+    int selectionEnd = text.indexOf('}', selectionStart) + 1;
+    SelectionModel selectionModel = myFixture.getEditor().getSelectionModel();
+    selectionModel.setSelection(selectionStart, selectionEnd);
+
+    List<OutputInfo> expected = Arrays.asList(
+      new Foreground(1), new FontFamilyName(1), new FontStyle(Font.BOLD), new FontSize(12), new Text(0, 11), // 'public int '
+      new Foreground(2), new FontStyle(Font.PLAIN), new Text(11, 24), // 'getField() {\n'
+      new Text(28, 32), // '    ' - indent before 'return field;'
+      new Foreground(1), new FontStyle(Font.BOLD), new Text(32, 39), // 'return '
+      new Foreground(3), new Text(39, 44), // 'field'
+      new Foreground(2), new FontStyle(Font.PLAIN), new Text(44, 46), // ';\n'
+      new Text(50, 51) // '}'
+    );
+    
+    assertEquals(expected, getSyntaxInfoForRegularSelection().getOutputInfos());
+    
+    selectionModel.setSelection(selectionStart - 2, selectionEnd);
+    assertEquals(shiftText(expected, 2), getSyntaxInfoForRegularSelection().getOutputInfos());
+
+    selectionModel.setSelection(selectionStart - 4, selectionEnd);
+    assertEquals(shiftText(expected, 4), getSyntaxInfoForRegularSelection().getOutputInfos());
+  }
+  
+  @NotNull
+  private static List<OutputInfo> shiftText(@NotNull List<OutputInfo> base, final int offsetShift) {
+    final List<OutputInfo> result = ContainerUtilRt.newArrayList();
+    OutputInfoVisitor visitor = new OutputInfoVisitor() {
+      @Override
+      public void visit(@NotNull Text text) {
+        result.add(new Text(text.getStartOffset() + offsetShift, text.getEndOffset() + offsetShift));
+      }
+
+      @Override
+      public void visit(@NotNull Foreground color) {
+        result.add(color);
+      }
+
+      @Override
+      public void visit(@NotNull Background color) {
+        result.add(color);
+      }
+
+      @Override
+      public void visit(@NotNull FontFamilyName name) {
+        result.add(name);
+      }
+
+      @Override
+      public void visit(@NotNull FontStyle style) {
+        result.add(style);
+      }
+
+      @Override
+      public void visit(@NotNull FontSize size) {
+        result.add(size);
+      }
+    };
+    for (OutputInfo info : base) {
+      info.invite(visitor);
+    }
+    return result;
+  }
+  
+  @NotNull
+  private SyntaxInfo getSyntaxInfoForRegularSelection() {
+    SelectionModel model = myFixture.getEditor().getSelectionModel();
+    assertTrue(model.hasSelection());
+    return doGetSyntaxInfo(new int[] { model.getSelectionStart() }, new int[] { model.getSelectionEnd() });
+  }
+  
   @NotNull
   private SyntaxInfo getSyntaxInfoForBlockSelection() {
+    SelectionModel model = myFixture.getEditor().getSelectionModel();
+    return doGetSyntaxInfo(model.getBlockSelectionStarts(), model.getBlockSelectionEnds());
+  }
+  
+  private SyntaxInfo doGetSyntaxInfo(int[] startOffsets, int[] endOffsets) {
     myFixture.doHighlighting();
     final Ref<SyntaxInfo> syntaxInfo = new Ref<SyntaxInfo>();
     Editor editor = myFixture.getEditor();
-    SelectionModel selectionModel = editor.getSelectionModel();
 
     new AbstractCopyPasteSyntaxAwareProcessor<DummyTransferable>() {
       @Nullable
@@ -77,7 +169,8 @@ public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase 
       protected boolean isEnabled(@NotNull CopyOnSteroidSettings settings) {
         return true;
       }
-    }.collectTransferableData(myFixture.getFile(), editor, selectionModel.getBlockSelectionStarts(), selectionModel.getBlockSelectionEnds());
+    }.collectTransferableData(myFixture.getFile(), editor, startOffsets, endOffsets);
+    
     return syntaxInfo.get();
   }
   

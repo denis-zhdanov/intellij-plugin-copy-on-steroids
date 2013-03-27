@@ -5,10 +5,7 @@ import com.intellij.codeInsight.daemon.impl.HighlightInfoType;
 import com.intellij.codeInsight.editorActions.CopyPastePostProcessor;
 import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
 import com.intellij.ide.highlighter.HighlighterFactory;
-import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.LogicalPosition;
-import com.intellij.openapi.editor.RangeMarker;
-import com.intellij.openapi.editor.SelectionModel;
+import com.intellij.openapi.editor.*;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.editor.ex.DisposableIterator;
 import com.intellij.openapi.editor.ex.MarkupModelEx;
@@ -21,9 +18,11 @@ import com.intellij.openapi.editor.markup.HighlighterLayer;
 import com.intellij.openapi.editor.markup.MarkupModel;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.containers.ContainerUtilRt;
+import com.intellij.util.text.CharArrayUtil;
 import org.denis.model.*;
 import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
@@ -42,19 +41,32 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   @Override
   public T collectTransferableData(PsiFile file, Editor editor, int[] startOffsets, int[] endOffsets) {
     CopyOnSteroidSettings settings = CopyOnSteroidSettings.getInstance();
-    if (!isEnabled(settings)) {
+    if (!isEnabled(settings) || startOffsets.length <= 0) {
       return null;
     }
 
     SelectionModel selectionModel = editor.getSelectionModel();
     LogicalPosition blockStart = selectionModel.getBlockStart();
     LogicalPosition blockEnd = selectionModel.getBlockEnd();
+    final int indentSymbolsToStrip;
+    final int firstLineStartOffset;
     final int lineWidth;
     if (blockStart != null && blockEnd != null) {
       lineWidth = Math.abs(blockEnd.column - blockStart.column);
+      indentSymbolsToStrip = 0;
+      firstLineStartOffset = startOffsets[0];
     }
     else {
       lineWidth = -1;
+      if (settings.isStripIndents()) {
+        Pair<Integer, Integer> p = calcIndentSymbolsToStrip(editor.getDocument(), startOffsets[0], endOffsets[endOffsets.length - 1]);
+        firstLineStartOffset = p.first;
+        indentSymbolsToStrip = p.second;
+      }
+      else {
+        firstLineStartOffset = startOffsets[0];
+        indentSymbolsToStrip = 0;
+      }
     }
     CharSequence text = editor.getDocument().getCharsSequence();
     EditorHighlighter highlighter = HighlighterFactory.createHighlighter(file.getProject(), file.getVirtualFile());
@@ -62,11 +74,12 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     EditorColorsScheme schemeToUse = settings.getColorsScheme(editor);
     highlighter.setColorScheme(schemeToUse);
     MarkupModel markupModel = DocumentMarkupModel.forDocument(editor.getDocument(), file.getProject(), false);
-    Context context = new Context(editor, schemeToUse);
+    Context context = new Context(editor, schemeToUse, indentSymbolsToStrip);
     int shift = 0;
     int prevEndOffset = 0;
     
     for (int i = 0; i < startOffsets.length; i++) {
+      int startOffsetToUse = i == 0 ? firstLineStartOffset : startOffsets[i];
       if (i > 0) { // Block selection is active.
         int fillStringLength = lineWidth - (endOffsets[i - 1] - startOffsets[i - 1]); // Block selection fills short lines by white spaces.
         int endLineOffset = endOffsets[i - 1] + shift + fillStringLength;
@@ -78,8 +91,8 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       prevEndOffset = endOffsets[i];
       context.reset(shift);
       DisposableIterator<SegmentInfo> it = aggregateSyntaxInfo(editor,
-                                                               wrap(highlighter, editor, startOffsets[i], endOffsets[i]),
-                                                               wrap(markupModel, editor, schemeToUse, startOffsets[i], endOffsets[i]));
+                                                               wrap(highlighter, editor, startOffsetToUse, endOffsets[i]),
+                                                               wrap(markupModel, editor, schemeToUse, startOffsetToUse, endOffsets[i]));
       try {
         while (it.hasNext()) {
           SegmentInfo info = it.next();
@@ -95,6 +108,25 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       context.onIterationEnd(endOffsets[i]);
     }
     return build(context.finish());
+  }
+
+  private static Pair<Integer/* start offset to use */, Integer /* indent symbols to strip */> calcIndentSymbolsToStrip(
+    @NotNull Document document, int startOffset, int endOffset)
+  {
+    int startLine = document.getLineNumber(startOffset);
+    int endLine = document.getLineNumber(endOffset);
+    CharSequence text = document.getCharsSequence();
+    for (int line = startLine; line <= endLine; line++) {
+      int lineStartOffset = document.getLineStartOffset(line);
+      int lineEndOffset = document.getLineEndOffset(line);
+      int nonWsOffset = CharArrayUtil.shiftForward(text, lineStartOffset, lineEndOffset, " \t");
+      if (nonWsOffset >= lineEndOffset) {
+        continue; // Blank line
+      }
+      final int startOffsetToUse = line == startLine ? nonWsOffset : startOffset;
+      return Pair.create(startOffsetToUse, nonWsOffset - lineStartOffset);
+    }
+    return Pair.create(startOffset, 0);
   }
 
   @Nullable
@@ -384,21 +416,27 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     @Nullable private Color  myBackground;
     @Nullable private Color  myForeground;
     @Nullable private String myFontFamilyName;
-
+    
+    private final int myIndentSymbolsToStrip;
+    
     private int myFontStyle   = -1;
     private int myFontSize    = -1;
     private int myStartOffset = -1;
     private int myOffsetShift = -1;
 
-    Context(@NotNull Editor editor, @NotNull EditorColorsScheme scheme) {
+    private int myIndentSymbolsToStripAtCurrentLine;
+
+    Context(@NotNull Editor editor, @NotNull EditorColorsScheme scheme, int indentSymbolsToStrip) {
       myText = editor.getDocument().getCharsSequence();
       myDefaultForeground = scheme.getDefaultForeground();
       myDefaultBackground = scheme.getDefaultBackground();
+      myIndentSymbolsToStrip = indentSymbolsToStrip;
     }
 
     public void reset(int offsetShift) {
       myStartOffset = -1;
       myOffsetShift = offsetShift;
+      myIndentSymbolsToStripAtCurrentLine = 0;
     }
 
     public void onNewData(@NotNull SegmentInfo info) {
@@ -485,7 +523,31 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
 
     private void addTextIfPossible(int endOffset) {
-      if (endOffset > myStartOffset) {
+      if (endOffset <= myStartOffset) {
+        return;
+      }
+
+      for (int i = myStartOffset; i < endOffset; i++) {
+        char c = myText.charAt(i);
+        switch (c) {
+          case '\n':
+            myIndentSymbolsToStripAtCurrentLine = myIndentSymbolsToStrip;
+            outputInfos.add(new Text(myStartOffset + myOffsetShift, i + myOffsetShift + 1));
+            myStartOffset = i + 1;
+            break;
+          // Intended fall-through.
+          case ' ':
+          case '\t':
+            if (myIndentSymbolsToStripAtCurrentLine > 0) {
+              myIndentSymbolsToStripAtCurrentLine--;
+              myStartOffset++;
+              continue;
+            }
+          default: myIndentSymbolsToStripAtCurrentLine = 0;
+        }
+      }
+
+      if (myStartOffset < endOffset) {
         outputInfos.add(new Text(myStartOffset + myOffsetShift, endOffset + myOffsetShift));
         myStartOffset = endOffset;
       }
