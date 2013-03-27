@@ -30,7 +30,23 @@ public class Text implements OutputInfo {
   }
 
   @Override
+  public int hashCode() {
+    int result = myStartOffset;
+    result = 31 * result + myEndOffset;
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    Text text = (Text)o;
+    return myEndOffset == text.myEndOffset && myStartOffset == text.myStartOffset;
+  }
+
+  @Override
   public String toString() {
-    return myStartOffset + "-" + myEndOffset;
+    return String.format("text=%d-%d", myStartOffset, myEndOffset);
   }
 }

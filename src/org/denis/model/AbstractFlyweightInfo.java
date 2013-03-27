@@ -15,4 +15,18 @@ public abstract class AbstractFlyweightInfo implements OutputInfo {
   public int getId() {
     return myId;
   }
+
+  @Override
+  public int hashCode() {
+    return myId;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    AbstractFlyweightInfo info = (AbstractFlyweightInfo)o;
+    return myId == info.myId;
+  }
 }

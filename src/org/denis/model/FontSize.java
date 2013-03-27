@@ -22,4 +22,24 @@ public class FontSize implements OutputInfo {
   public void invite(@NotNull OutputInfoVisitor visitor) {
     visitor.visit(this);
   }
+
+  @Override
+  public int hashCode() {
+    return mySize;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    FontSize size = (FontSize)o;
+
+    return mySize == size.mySize;
+  }
+
+  @Override
+  public String toString() {
+    return "font size=" + mySize;
+  }
 }

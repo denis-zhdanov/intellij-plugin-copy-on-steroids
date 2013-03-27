@@ -16,4 +16,9 @@ public class Foreground extends AbstractFlyweightInfo {
   public void invite(@NotNull OutputInfoVisitor visitor) {
     visitor.visit(this);
   }
+
+  @Override
+  public String toString() {
+    return "foreground=" + getId();
+  }
 }

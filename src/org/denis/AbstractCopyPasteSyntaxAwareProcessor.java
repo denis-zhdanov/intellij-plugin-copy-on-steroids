@@ -6,7 +6,9 @@ import com.intellij.codeInsight.editorActions.CopyPastePostProcessor;
 import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
 import com.intellij.ide.highlighter.HighlighterFactory;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.editor.RangeMarker;
+import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.editor.ex.DisposableIterator;
 import com.intellij.openapi.editor.ex.MarkupModelEx;
@@ -43,7 +45,17 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     if (!isEnabled(settings)) {
       return null;
     }
-    
+
+    SelectionModel selectionModel = editor.getSelectionModel();
+    LogicalPosition blockStart = selectionModel.getBlockStart();
+    LogicalPosition blockEnd = selectionModel.getBlockEnd();
+    final int lineWidth;
+    if (blockStart != null && blockEnd != null) {
+      lineWidth = Math.abs(blockEnd.column - blockStart.column);
+    }
+    else {
+      lineWidth = -1;
+    }
     CharSequence text = editor.getDocument().getCharsSequence();
     EditorHighlighter highlighter = HighlighterFactory.createHighlighter(file.getProject(), file.getVirtualFile());
     highlighter.setText(text);
@@ -55,6 +67,13 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     int prevEndOffset = 0;
     
     for (int i = 0; i < startOffsets.length; i++) {
+      if (i > 0) { // Block selection is active.
+        int fillStringLength = lineWidth - (endOffsets[i - 1] - startOffsets[i - 1]); // Block selection fills short lines by white spaces.
+        int endLineOffset = endOffsets[i - 1] + shift + fillStringLength;
+        context.outputInfos.add(new Text(endLineOffset, endLineOffset + 1));
+        shift++; // Block selection ends '\n' at line end
+        shift += fillStringLength;
+      }
       shift += prevEndOffset - startOffsets[i];
       prevEndOffset = endOffsets[i];
       context.reset(shift);
@@ -353,7 +372,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   
   private static class Context {
 
-    @NotNull List<OutputInfo> myOutputInfos = ContainerUtilRt.newArrayList();
+    @NotNull public final List<OutputInfo> outputInfos = ContainerUtilRt.newArrayList();
 
     @NotNull private final ColorRegistry    myColorRegistry    = new ColorRegistry();
     @NotNull private final FontNameRegistry myFontNameRegistry = new FontNameRegistry();
@@ -366,10 +385,10 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     @Nullable private Color  myForeground;
     @Nullable private String myFontFamilyName;
 
-    private int myFontStyle;
-    private int myFontSize;
-    private int myStartOffset;
-    private int myOffsetShift;
+    private int myFontStyle   = -1;
+    private int myFontSize    = -1;
+    private int myStartOffset = -1;
+    private int myOffsetShift = -1;
 
     Context(@NotNull Editor editor, @NotNull EditorColorsScheme scheme) {
       myText = editor.getDocument().getCharsSequence();
@@ -378,19 +397,13 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
 
     public void reset(int offsetShift) {
-      myBackground = null;
-      myForeground = null;
-      myFontFamilyName = null;
-      myFontStyle = Font.PLAIN;
-      myFontSize = -1;
       myStartOffset = -1;
       myOffsetShift = offsetShift;
     }
 
     public void onNewData(@NotNull SegmentInfo info) {
       if (myStartOffset < 0) {
-        onFirstSegment(info);
-        return;
+        myStartOffset = info.startOffset;
       }
 
       if (containsWhiteSpacesOnly(info)) {
@@ -417,7 +430,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     private void processFontStyle(@NotNull SegmentInfo info) {
       if (info.fontStyle != myFontStyle) {
         addTextIfPossible(info.startOffset);
-        myOutputInfos.add(new FontStyle(info.fontStyle));
+        outputInfos.add(new FontStyle(info.fontStyle));
         myFontStyle = info.fontStyle;
       }
     }
@@ -425,7 +438,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     private void processFontSize(@NotNull SegmentInfo info) {
       if (info.fontSize != myFontSize) {
         addTextIfPossible(info.startOffset);
-        myOutputInfos.add(new FontSize(info.fontSize));
+        outputInfos.add(new FontSize(info.fontSize));
         myFontSize = info.fontSize;
       }
     }
@@ -433,9 +446,8 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     private void processFontFamilyName(@NotNull SegmentInfo info) {
       if (!info.fontFamilyName.equals(myFontFamilyName)) {
         addTextIfPossible(info.startOffset);
-        if (myFontFamilyName != null) {
-          myOutputInfos.add(new FontFamilyName(myFontNameRegistry.getId(myFontFamilyName)));
-        }
+        String name = myFontFamilyName == null ? info.fontFamilyName : myFontFamilyName;
+        outputInfos.add(new FontFamilyName(myFontNameRegistry.getId(name)));
         myFontFamilyName = info.fontFamilyName;
       }
     }
@@ -444,13 +456,13 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       if (myForeground == null && info.foreground != null) {
         addTextIfPossible(info.startOffset);
         myForeground = info.foreground;
-        myOutputInfos.add(new Foreground(myColorRegistry.getId(info.foreground)));
+        outputInfos.add(new Foreground(myColorRegistry.getId(info.foreground)));
       }
       else if (myForeground != null) {
         Color c = info.foreground == null ? myDefaultForeground : info.foreground;
         if (!myForeground.equals(c)) {
           addTextIfPossible(info.startOffset);
-          myOutputInfos.add(new Foreground(myColorRegistry.getId(c)));
+          outputInfos.add(new Foreground(myColorRegistry.getId(c)));
           myForeground = c;
         }
       }
@@ -460,67 +472,27 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       if (myBackground == null && info.background != null) {
         addTextIfPossible(info.startOffset);
         myBackground = info.background;
-        myOutputInfos.add(new Background(myColorRegistry.getId(info.background)));
+        outputInfos.add(new Background(myColorRegistry.getId(info.background)));
       }
       else if (myBackground != null) {
         Color c = info.background == null ? myDefaultBackground : info.background;
         if (!myBackground.equals(c)) {
           addTextIfPossible(info.startOffset);
-          myOutputInfos.add(new Background(myColorRegistry.getId(myBackground)));
+          outputInfos.add(new Background(myColorRegistry.getId(myBackground)));
           myBackground = c;
         }
       }
     }
 
-    private void onFirstSegment(@NotNull SegmentInfo info) {
-      myStartOffset = info.startOffset;
-
-      myFontStyle = info.fontStyle;
-      if (myFontStyle != Font.PLAIN) {
-        myOutputInfos.add(new FontStyle(myFontStyle));
-      }
-
-      myFontSize = info.fontSize;
-      if (myFontSize > 0) {
-        myOutputInfos.add(new FontSize(myFontSize));
-      }
-
-      myBackground = info.background;
-      if (myBackground != null) {
-        myOutputInfos.add(new Background(myColorRegistry.getId(myBackground)));
-      }
-
-      myForeground = info.foreground;
-      if (myForeground != null) {
-        myOutputInfos.add(new Foreground(myColorRegistry.getId(myForeground)));
-      }
-
-      myFontFamilyName = info.fontFamilyName;
-      myOutputInfos.add(new FontFamilyName(myFontNameRegistry.getId(myFontFamilyName)));
-    }
-
     private void addTextIfPossible(int endOffset) {
       if (endOffset > myStartOffset) {
-        myOutputInfos.add(new Text(myStartOffset + myOffsetShift, endOffset + myOffsetShift));
+        outputInfos.add(new Text(myStartOffset + myOffsetShift, endOffset + myOffsetShift));
         myStartOffset = endOffset;
       }
     }
 
-    @NotNull
-    public List<OutputInfo> onIterationEnd(int endOffset) {
-      if (myStartOffset >= 0 && myStartOffset < endOffset) {
-        if (myForeground != null) {
-          myOutputInfos.add(new Foreground(myColorRegistry.getId(myForeground)));
-        }
-        if (myBackground != null) {
-          myOutputInfos.add(new Background(myColorRegistry.getId(myBackground)));
-        }
-        if (myFontFamilyName != null) {
-          myOutputInfos.add(new FontFamilyName(myFontNameRegistry.getId(myFontFamilyName)));
-        }
-        myOutputInfos.add(new Text(myStartOffset + myOffsetShift, endOffset + myOffsetShift));
-      }
-      return myOutputInfos;
+    public void onIterationEnd(int endOffset) {
+      addTextIfPossible(endOffset);
     }
 
     @NotNull
@@ -529,7 +501,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       int background = myColorRegistry.getId(myDefaultBackground);
       myColorRegistry.seal();
       myFontNameRegistry.seal();
-      return new SyntaxInfo(myOutputInfos, foreground, background, myFontNameRegistry, myColorRegistry);
+      return new SyntaxInfo(outputInfos, foreground, background, myFontNameRegistry, myColorRegistry);
     }
   }
 

@@ -22,4 +22,24 @@ public class FontStyle implements OutputInfo {
   public void invite(@NotNull OutputInfoVisitor visitor) {
     visitor.visit(this); 
   }
+
+  @Override
+  public int hashCode() {
+    return myStyle;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    FontStyle style = (FontStyle)o;
+
+    return myStyle == style.myStyle;
+  }
+
+  @Override
+  public String toString() {
+    return "font style=" + myStyle;
+  }
 }
