@@ -334,9 +334,10 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         }
         
         RangeHighlighterEx highlighter = iterator.next();
+        TextAttributes highlighterAttributes = highlighter.getTextAttributes();
         while (highlighter == null
                || !highlighter.isValid()
-               || highlighter.getTextAttributes() == null
+               || highlighterAttributes == null
                || !isInterestedHighlightLayer(highlighter.getLayer()))
         {
           if (!iterator.hasNext()) {
@@ -359,7 +360,10 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
           }
         }
         if (attributes == null) {
-          attributes = highlighter.getTextAttributes();
+          attributes = highlighterAttributes;
+        }
+        else {
+          attributes = TextAttributes.merge(highlighterAttributes, attributes);
         }
         
         if (attributes == null) {
