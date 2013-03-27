@@ -23,7 +23,7 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
 
   @NotNull private static final String HEADER_PREFIX  = "{\\rtf1\\ansi\\deff0";
   @NotNull private static final String HEADER_SUFFIX  = "}";
-  @NotNull private static final String TAB            = "\\tab";
+  @NotNull private static final String TAB            = "\\tab\n";
   @NotNull private static final String NEW_LINE       = "\\line\n";
   @NotNull private static final String BOLD           = "\\b";
   @NotNull private static final String ITALIC         = "\\i";
@@ -63,7 +63,7 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
   }
 
   @Override
-  public int read(byte[] b, int off, int len) throws IOException {
+  public int read(@NotNull byte[] b, int off, int len) throws IOException {
     return getDelegate().read(b, off, len);
   }
   

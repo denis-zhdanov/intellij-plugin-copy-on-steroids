@@ -7,6 +7,7 @@ import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
 import com.intellij.ide.highlighter.HighlighterFactory;
 import com.intellij.openapi.editor.*;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
+import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.openapi.editor.ex.DisposableIterator;
 import com.intellij.openapi.editor.ex.MarkupModelEx;
 import com.intellij.openapi.editor.ex.RangeHighlighterEx;
@@ -22,7 +23,6 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.containers.ContainerUtilRt;
-import com.intellij.util.text.CharArrayUtil;
 import org.denis.model.*;
 import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
@@ -119,7 +119,14 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     for (int line = startLine; line <= endLine; line++) {
       int lineStartOffset = document.getLineStartOffset(line);
       int lineEndOffset = document.getLineEndOffset(line);
-      int nonWsOffset = CharArrayUtil.shiftForward(text, lineStartOffset, lineEndOffset, " \t");
+      int nonWsOffset = lineEndOffset;
+      for (int i = lineStartOffset; i < lineEndOffset; i++) {
+        char c = text.charAt(i);
+        if (c != ' ' && c != '\t') {
+          nonWsOffset = i;
+          break;
+        }
+      }
       if (nonWsOffset >= lineEndOffset) {
         continue; // Blank line
       }
@@ -166,7 +173,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         }
         while (!myInfos.isEmpty()) {
           SegmentInfo toMerge = myInfos.peek();
-          if (toMerge.startOffset != result.startOffset || toMerge.endOffset != result.endOffset) {
+          if (toMerge.endOffset > result.endOffset) {
             break;
           }
           myInfos.remove();
@@ -334,10 +341,8 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         }
         
         RangeHighlighterEx highlighter = iterator.next();
-        TextAttributes highlighterAttributes = highlighter.getTextAttributes();
         while (highlighter == null
                || !highlighter.isValid()
-               || highlighterAttributes == null
                || !isInterestedHighlightLayer(highlighter.getLayer()))
         {
           if (!iterator.hasNext()) {
@@ -354,16 +359,17 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         TextAttributes attributes = null;
         Object tooltip = highlighter.getErrorStripeTooltip();
         if (tooltip instanceof HighlightInfo) {
-          HighlightInfoType type = ((HighlightInfo)tooltip).type;
-          if (type != null) {
-            attributes = colorsScheme.getAttributes(type.getAttributesKey());
+          HighlightInfo info = (HighlightInfo)tooltip;
+          TextAttributesKey key = info.forcedTextAttributesKey;
+          if (key == null) {
+            HighlightInfoType type = info.type;
+            if (type != null) {
+              key = type.getAttributesKey();
+            }
           }
-        }
-        if (attributes == null) {
-          attributes = highlighterAttributes;
-        }
-        else {
-          attributes = TextAttributes.merge(highlighterAttributes, attributes);
+          if (key != null) {
+            attributes = colorsScheme.getAttributes(key);
+          }
         }
         
         if (attributes == null) {

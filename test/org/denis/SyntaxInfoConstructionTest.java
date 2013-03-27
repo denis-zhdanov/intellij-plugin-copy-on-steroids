@@ -98,6 +98,43 @@ public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase 
     selectionModel.setSelection(selectionStart - 4, selectionEnd);
     assertEquals(shiftText(expected, 4), getSyntaxInfoForRegularSelection().getOutputInfos());
   }
+
+  public void testJavaOverride() {
+    String text =
+      "package org;\n" +
+      "\n" +
+      "class SampleTest {\n" +
+      "\n" +
+      "    @Override\n" +
+      "    public String toString() {\n" +
+      "        return null;\n" +
+      "    }\n" +
+      "}\n";
+    myFixture.configureByText("test.java", text);
+
+    myFixture.getEditor().getSelectionModel().setSelection(0, text.length());
+
+    List<OutputInfo> expected = Arrays.asList(
+      new Foreground(1), new FontFamilyName(1), new FontStyle(Font.BOLD), new FontSize(12), new Text(0, 8),
+      new Foreground(2), new FontStyle(Font.PLAIN), new Text(8, 13),
+      new Text(13, 14),
+      new Foreground(1), new FontStyle(Font.BOLD), new Text(14, 20),
+      new Foreground(2), new FontStyle(Font.PLAIN), new Text(20, 33),
+      new Text(33, 34),
+      new Text(34, 38),
+      new Foreground(3), new Text(38, 48),
+      new Text(48, 52),
+      new Foreground(1), new FontStyle(Font.BOLD), new Text(52, 59),
+      new Foreground(2), new FontStyle(Font.PLAIN), new Text(59, 79),
+      new Text(79, 87),
+      new Foreground(1), new FontStyle(Font.BOLD), new Text(87, 98),
+      new Foreground(2), new FontStyle(Font.PLAIN), new Text(98, 100),
+      new Text(100, 106),
+      new Text(106, 108)
+    );
+
+    assertEquals(expected, getSyntaxInfoForRegularSelection().getOutputInfos());
+  }
   
   @NotNull
   private static List<OutputInfo> shiftText(@NotNull List<OutputInfo> base, final int offsetShift) {
