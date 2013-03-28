@@ -10,8 +10,9 @@
 
   <change-notes><![CDATA[
   <ul>
-  <li>Simple HTML output is provided;</li>
-  <li>Don't highlight syntax errors;</li>
+  <li>simple HTML output is provided;</li>
+  <li>don't highlight syntax errors;</li>
+  <li>output info uses font name configured at the target 'colors & fonts' scheme;</li>
   </ul>
   ]]></change-notes>
 

@@ -12,9 +12,9 @@ import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.openapi.editor.ex.DisposableIterator;
 import com.intellij.openapi.editor.ex.MarkupModelEx;
 import com.intellij.openapi.editor.ex.RangeHighlighterEx;
-import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.highlighter.HighlighterIterator;
+import com.intellij.openapi.editor.impl.ComplementaryFontsRegistry;
 import com.intellij.openapi.editor.impl.DocumentMarkupModel;
 import com.intellij.openapi.editor.markup.HighlighterLayer;
 import com.intellij.openapi.editor.markup.MarkupModel;
@@ -104,7 +104,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       prevEndOffset = endOffsets[i];
       context.reset(shift);
       DisposableIterator<SegmentInfo> it = aggregateSyntaxInfo(editor,
-                                                               wrap(highlighter, editor, startOffsetToUse, endOffsets[i]),
+                                                               wrap(highlighter, editor, schemeToUse, startOffsetToUse, endOffsets[i]),
                                                                wrap(markupModel, editor, schemeToUse, startOffsetToUse, endOffsets[i]));
       try {
         while (it.hasNext()) {
@@ -297,6 +297,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   @NotNull
   private static DisposableIterator<List<SegmentInfo>> wrap(@NotNull final EditorHighlighter highlighter,
                                                             @NotNull final Editor editor,
+                                                            @NotNull final EditorColorsScheme colorsScheme,
                                                             final int startOffset,
                                                             final int endOffset)
   {
@@ -349,7 +350,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         }
         TextAttributes attributes = highlighterIterator.getTextAttributes();
         int tokenEnd = Math.min(highlighterIterator.getEnd(), endOffset);
-        myCached = SegmentInfo.produce(attributes, editor, tokenStart, tokenEnd);
+        myCached = SegmentInfo.produce(attributes, editor, colorsScheme, tokenStart, tokenEnd);
         highlighterIterator.advance();
         return true;
       }
@@ -454,7 +455,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         
         int tokenEnd = Math.min(highlighter.getEndOffset(), endOffset);
         //noinspection ConstantConditions
-        myCached = SegmentInfo.produce(attributes, editor, tokenStart, tokenEnd);
+        myCached = SegmentInfo.produce(attributes, editor, colorsScheme, tokenStart, tokenEnd);
         return true;
       }
       
@@ -570,8 +571,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     private void processFontFamilyName(@NotNull SegmentInfo info) {
       if (!info.fontFamilyName.equals(myFontFamilyName)) {
         addTextIfPossible(info.startOffset);
-        String name = myFontFamilyName == null ? info.fontFamilyName : myFontFamilyName;
-        outputInfos.add(new FontFamilyName(myFontNameRegistry.getId(name)));
+        outputInfos.add(new FontFamilyName(myFontNameRegistry.getId(info.fontFamilyName)));
         myFontFamilyName = info.fontFamilyName;
       }
     }
@@ -682,27 +682,35 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
 
     @NotNull
-    public static List<SegmentInfo> produce(@NotNull TextAttributes attribute, @NotNull Editor editor, int start, int end) {
+    public static List<SegmentInfo> produce(@NotNull TextAttributes attribute,
+                                            @NotNull Editor editor,
+                                            @NotNull EditorColorsScheme colorsScheme,
+                                            int start,
+                                            int end)
+    {
       if (end <= start) {
         return Collections.emptyList();
       }
       List<SegmentInfo> result = ContainerUtilRt.newArrayList();
       CharSequence text = editor.getDocument().getCharsSequence();
       int currentStart = start;
-      Font font = EditorUtil.fontForChar(text.charAt(start), attribute.getFontType(), editor).getFont();
+      int fontSize = colorsScheme.getEditorFontSize();
+      int fontStyle = attribute.getFontType();
+      String defaultFontFamily = colorsScheme.getEditorFontName();
+      Font font = ComplementaryFontsRegistry.getFontAbleToDisplay(text.charAt(start), fontSize, fontStyle, defaultFontFamily).getFont();
       String currentFontFamilyName = font.getFamily();
       int currentFontSize = font.getSize();
       String candidateFontFamilyName;
       int candidateFontSize;
       for (int i = start + 1; i < end; i++) {
-        font = EditorUtil.fontForChar(text.charAt(i), attribute.getFontType(), editor).getFont();
+        font = ComplementaryFontsRegistry.getFontAbleToDisplay(text.charAt(i), fontSize, fontStyle, defaultFontFamily).getFont();
         candidateFontFamilyName = font.getFamily();
         candidateFontSize = font.getSize();
         if (!candidateFontFamilyName.equals(currentFontFamilyName) || currentFontSize != candidateFontSize) {
           result.add(new SegmentInfo(attribute.getForegroundColor(),
                                      attribute.getBackgroundColor(),
                                      currentFontFamilyName,
-                                     attribute.getFontType(),
+                                     fontStyle,
                                      currentFontSize,
                                      currentStart,
                                      i
@@ -717,7 +725,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         result.add(new SegmentInfo(attribute.getForegroundColor(),
                                    attribute.getBackgroundColor(),
                                    currentFontFamilyName,
-                                   attribute.getFontType(),
+                                   fontStyle,
                                    currentFontSize,
                                    currentStart,
                                    end

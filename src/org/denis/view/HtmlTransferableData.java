@@ -45,7 +45,6 @@ public class HtmlTransferableData extends AbstractSyntaxAwareTransferableData im
     myColorRegistry = syntaxInfo.getColorRegistry();
     myFontNameRegistry = syntaxInfo.getFontNameRegistry();
     try {
-
       myBuffer.append("<div style='border:1px inset;padding:2%;'>")
               .append("<pre style='margin:0;padding:6px;background-color:")
 //              .append("<pre style='height:30%;overflow:auto;margin:0;padding:6px;background-color:")
