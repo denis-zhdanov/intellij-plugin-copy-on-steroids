@@ -18,13 +18,15 @@ import java.io.Serializable;
  * @author Denis Zhdanov
  * @since 3/28/13 1:20 PM
  */
-public abstract class AbstractSyntaxAwareTransferableData extends InputStream implements TextBlockTransferableData, Serializable {
+public abstract class AbstractSyntaxAwareInputStreamTransferableData extends InputStream
+  implements TextBlockTransferableData, Serializable
+{
 
   @NotNull private final SyntaxInfo mySyntaxInfo;
 
   @Nullable private transient InputStream myDelegate;
 
-  public AbstractSyntaxAwareTransferableData(@NotNull SyntaxInfo syntaxInfo) {
+  public AbstractSyntaxAwareInputStreamTransferableData(@NotNull SyntaxInfo syntaxInfo) {
     mySyntaxInfo = syntaxInfo;
   }
 

@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 
-public class RtfTransferableData extends AbstractSyntaxAwareTransferableData {
+public class RtfTransferableData extends AbstractSyntaxAwareInputStreamTransferableData {
 
   private static final Logger LOG = Logger.getInstance("#" + RtfTransferableData.class.getName());
 

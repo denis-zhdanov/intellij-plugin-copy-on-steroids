@@ -10,9 +10,9 @@ import java.awt.datatransfer.DataFlavor;
  * @author Denis Zhdanov
  * @since 3/28/13 1:06 PM
  */
-public class HtmlTransferableData extends AbstractSyntaxAwareTransferableData implements OutputInfoVisitor {
+public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableData implements OutputInfoVisitor {
 
-  @NotNull private static final DataFlavor FLAVOR = new DataFlavor("text/html;class=java.io.InputStream", "HTML text");
+  @NotNull private static final DataFlavor FLAVOR = new DataFlavor("text/html;class=java.io.Reader", "HTML text");
 
   private static final long serialVersionUID = 1L;
 
@@ -48,7 +48,7 @@ public class HtmlTransferableData extends AbstractSyntaxAwareTransferableData im
       myBuffer.append("<div style='border:1px inset;padding:2%;'>")
               .append("<pre style='margin:0;padding:6px;background-color:")
 //              .append("<pre style='height:30%;overflow:auto;margin:0;padding:6px;background-color:")
-              .append(color(syntaxInfo.getDefaultBackground())).append('\'');
+              .append(color(syntaxInfo.getDefaultBackground())).append(';');
       if (myFontNameRegistry.size() == 1) {
         appendFontFamilyRule(myFontNameRegistry.getAllIds()[0]);
         myFontNameRegistry = null;
@@ -63,7 +63,8 @@ public class HtmlTransferableData extends AbstractSyntaxAwareTransferableData im
       for (OutputInfo info : syntaxInfo.getOutputInfos()) {
         info.invite(this);
       }
-      myBuffer.append("</pre></div>");
+      myBuffer.append("</pre>");
+//      myBuffer.append("</pre></div>");
     }
     finally {
       myBuffer = null;
@@ -127,6 +128,7 @@ public class HtmlTransferableData extends AbstractSyntaxAwareTransferableData im
         case '<': myBuffer.append("&lt;"); break;
         case '>': myBuffer.append("&gt;"); break;
         case '&': myBuffer.append("&amp;"); break;
+        case '\n': myBuffer.append("<br/>"); break;
         default: myBuffer.append(c);
       }
     }
