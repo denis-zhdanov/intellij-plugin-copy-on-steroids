@@ -5,6 +5,7 @@ import com.intellij.codeInsight.daemon.impl.HighlightInfoType;
 import com.intellij.codeInsight.editorActions.CopyPastePostProcessor;
 import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
 import com.intellij.ide.highlighter.HighlighterFactory;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Queue;
 
 public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockTransferableData> implements CopyPastePostProcessor<T> {
+
+  private static final Logger LOG = Logger.getInstance("#" + AbstractCopyPasteSyntaxAwareProcessor.class.getName());
 
   @SuppressWarnings("unchecked")
   @Nullable
@@ -68,6 +71,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         indentSymbolsToStrip = 0;
       }
     }
+    logInitial(editor, startOffsets, endOffsets, indentSymbolsToStrip, firstLineStartOffset, lineWidth);
     CharSequence text = editor.getDocument().getCharsSequence();
     EditorHighlighter highlighter = HighlighterFactory.createHighlighter(file.getProject(), file.getVirtualFile());
     highlighter.setText(text);
@@ -107,7 +111,47 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       }
       context.onIterationEnd(endOffsets[i]);
     }
-    return build(context.finish());
+    SyntaxInfo syntaxInfo = context.finish();
+    logSyntaxInfo(syntaxInfo);
+    return build(syntaxInfo);
+  }
+
+  private static void logInitial(@NotNull Editor editor,
+                                 @NotNull int[] startOffsets,
+                                 @NotNull int[] endOffsets,
+                                 int indentSymbolsToStrip,
+                                 int firstLineStartOffset,
+                                 int lineWidth)
+  {
+    CopyOnSteroidSettings settings = CopyOnSteroidSettings.getInstance();
+    if (!settings.isDebugProcessing()) {
+      return;
+    }
+    
+    StringBuilder buffer = new StringBuilder();
+    CharSequence text = editor.getDocument().getCharsSequence();
+    for (int i = 0; i < startOffsets.length; i++) {
+      int start = startOffsets[i];
+      int end = endOffsets[i];
+      buffer.append("    region #").append(i).append(": ").append(start).append('-').append(end).append(": \n'")
+        .append(text.subSequence(start, end)).append("'\n");
+    }
+    if (buffer.length() > 0) {
+      buffer.setLength(buffer.length() - 1);
+    }
+    LOG.info(String.format(
+      "Preparing syntax-aware text. Given: %s selection, indent symbols to strip=%d, first line start offset=%d, line width=%d, "
+      + "selected text:%n%s",
+      startOffsets.length > 1 ? "block" : "regular", indentSymbolsToStrip, firstLineStartOffset, lineWidth, buffer
+    ));
+  }
+
+  private static void logSyntaxInfo(@NotNull SyntaxInfo info) {
+    CopyOnSteroidSettings settings = CopyOnSteroidSettings.getInstance();
+    if (!settings.isDebugProcessing()) {
+      return;
+    }
+    LOG.info("Constructed syntax info: " + info);
   }
 
   private static Pair<Integer/* start offset to use */, Integer /* indent symbols to strip */> calcIndentSymbolsToStrip(

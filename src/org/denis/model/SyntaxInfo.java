@@ -55,4 +55,10 @@ public class SyntaxInfo implements Serializable {
   public int getDefaultBackground() {
     return myDefaultBackground;
   }
+
+  @Override
+  public String toString() {
+    return String.format("default colors: foreground=%d, background=%d; output infos: %s",
+                         myDefaultForeground, myDefaultBackground, myOutputInfos);
+  }
 }

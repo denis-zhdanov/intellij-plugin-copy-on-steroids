@@ -22,11 +22,12 @@ import java.awt.*;
 @SuppressWarnings("unchecked")
 public class CopyOnSteroidsConfigurable extends BaseConfigurable {
 
-  private JComponent           myContent              = new JPanel(new GridBagLayout());
-  private DefaultComboBoxModel myColorsSchemeModel    = new DefaultComboBoxModel();
-  private JComboBox            myColorsSchemeComboBox = new JComboBox(myColorsSchemeModel);
-  private JBCheckBox           myStripIndentsCheckBox = new JBCheckBox("Strip indents when appropriate");
-  private JBCheckBox           myCopyRtfCheckBox      = new JBCheckBox("Provide RTF on 'Copy'");
+  private JComponent           myContent                 = new JPanel(new GridBagLayout());
+  private DefaultComboBoxModel myColorsSchemeModel       = new DefaultComboBoxModel();
+  private JComboBox            myColorsSchemeComboBox    = new JComboBox(myColorsSchemeModel);
+  private JBCheckBox           myStripIndentsCheckBox    = new JBCheckBox("Strip indents when appropriate");
+  private JBCheckBox           myDebugProcessingCheckBox = new JBCheckBox("Debug processing");
+  private JBCheckBox           myCopyRtfCheckBox         = new JBCheckBox("Provide RTF on 'Copy'");
 
   @SuppressWarnings("UnusedDeclaration")
   public CopyOnSteroidsConfigurable() {
@@ -51,6 +52,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     myContent.add(new JLabel("Use colors of scheme"), labelConstraints);
     myContent.add(myColorsSchemeComboBox, lineConstraints);
     myContent.add(myStripIndentsCheckBox, lineConstraints);
+    myContent.add(myDebugProcessingCheckBox, lineConstraints);
     myContent.add(myCopyRtfCheckBox, lineConstraints);
     myContent.add(new JLabel(" "), new GridBag().weighty(1).fillCell());
   }
@@ -78,6 +80,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     CopyOnSteroidSettings settings = CopyOnSteroidSettings.getInstance();
     return !Comparing.equal(settings.getSchemeName(), myColorsSchemeComboBox.getSelectedItem())
            || myStripIndentsCheckBox.isSelected() != settings.isStripIndents()
+           || myDebugProcessingCheckBox.isSelected() != settings.isDebugProcessing()
            || myCopyRtfCheckBox.isSelected() != settings.isProvideRtf();
   }
 
@@ -88,6 +91,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     if (item instanceof String) {
       settings.setSchemeName(item.toString());
     }
+    settings.setDebugProcessing(myDebugProcessingCheckBox.isSelected());
     settings.setStripIndents(myStripIndentsCheckBox.isSelected());
     settings.setProvideRtf(myCopyRtfCheckBox.isSelected());
   }
@@ -107,6 +111,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
       myColorsSchemeComboBox.setSelectedItem(toSelect);
     }
     
+    myDebugProcessingCheckBox.setSelected(settings.isDebugProcessing());
     myStripIndentsCheckBox.setSelected(settings.isStripIndents());
     myCopyRtfCheckBox.setSelected(settings.isProvideRtf());
   }
@@ -116,6 +121,8 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     myContent = null;
     myColorsSchemeModel = null;
     myColorsSchemeComboBox = null;
+    myDebugProcessingCheckBox = null; 
+    myStripIndentsCheckBox = null; 
     myCopyRtfCheckBox = null; 
   }
 }

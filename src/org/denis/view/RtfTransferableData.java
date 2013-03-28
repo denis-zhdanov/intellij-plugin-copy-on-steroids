@@ -1,9 +1,11 @@
 package org.denis.view;
 
 import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.util.StringBuilderSpinAllocator;
 import org.denis.model.*;
+import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,17 +19,19 @@ import java.io.Serializable;
 
 public class RtfTransferableData extends InputStream implements TextBlockTransferableData, Serializable {
 
+  private static final Logger LOG = Logger.getInstance("#" + RtfTransferableData.class.getName());
+
   private static final long serialVersionUID = 1L;
 
   @NotNull private static final DataFlavor FLAVOR = new DataFlavor("text/rtf;class=java.io.InputStream", "RTF text");
 
-  @NotNull private static final String HEADER_PREFIX  = "{\\rtf1\\ansi\\deff0";
-  @NotNull private static final String HEADER_SUFFIX  = "}";
-  @NotNull private static final String TAB            = "\\tab\n";
-  @NotNull private static final String NEW_LINE       = "\\line\n";
-  @NotNull private static final String BOLD           = "\\b";
-  @NotNull private static final String ITALIC         = "\\i";
-  @NotNull private static final String PLAIN          = "\\plain\n";
+  @NotNull private static final String HEADER_PREFIX = "{\\rtf1\\ansi\\deff0";
+  @NotNull private static final String HEADER_SUFFIX = "}";
+  @NotNull private static final String TAB           = "\\tab\n";
+  @NotNull private static final String NEW_LINE      = "\\line\n";
+  @NotNull private static final String BOLD          = "\\b";
+  @NotNull private static final String ITALIC        = "\\i";
+  @NotNull private static final String PLAIN         = "\\plain\n";
 
   @NotNull private final SyntaxInfo mySyntaxInfo;
 
@@ -66,10 +70,10 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
   public int read(@NotNull byte[] b, int off, int len) throws IOException {
     return getDelegate().read(b, off, len);
   }
-  
+
   @Override
   public void close() throws IOException {
-    myDelegate = null; 
+    myDelegate = null;
   }
 
   @NotNull
@@ -100,7 +104,11 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
           }); 
         }
       });
-      myDelegate = new ByteArrayInputStream(buffer.toString().getBytes());
+      String s = buffer.toString();
+      if (CopyOnSteroidSettings.getInstance().isDebugProcessing()) {
+        LOG.info("RTF text: \n'" + s + "'");
+      }
+      myDelegate = new ByteArrayInputStream(s.getBytes());
       return myDelegate;
     }
     finally {
