@@ -46,6 +46,10 @@ public abstract class AbstractRegistry<T> {
     return result;
   }
 
+  public int size() {
+    return myDataById.size();
+  }
+
   public void seal() {
     myIdsByData = null;
     myDataById.compact();

@@ -28,6 +28,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
   private JBCheckBox           myStripIndentsCheckBox    = new JBCheckBox("Strip indents when appropriate");
   private JBCheckBox           myDebugProcessingCheckBox = new JBCheckBox("Debug processing");
   private JBCheckBox           myCopyRtfCheckBox         = new JBCheckBox("Provide RTF on 'Copy'");
+  private JBCheckBox           myCopyHtmlCheckBox         = new JBCheckBox("Provide HTML on 'Copy'");
 
   @SuppressWarnings("UnusedDeclaration")
   public CopyOnSteroidsConfigurable() {
@@ -54,6 +55,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     myContent.add(myStripIndentsCheckBox, lineConstraints);
     myContent.add(myDebugProcessingCheckBox, lineConstraints);
     myContent.add(myCopyRtfCheckBox, lineConstraints);
+    myContent.add(myCopyHtmlCheckBox, lineConstraints);
     myContent.add(new JLabel(" "), new GridBag().weighty(1).fillCell());
   }
 
@@ -81,7 +83,8 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     return !Comparing.equal(settings.getSchemeName(), myColorsSchemeComboBox.getSelectedItem())
            || myStripIndentsCheckBox.isSelected() != settings.isStripIndents()
            || myDebugProcessingCheckBox.isSelected() != settings.isDebugProcessing()
-           || myCopyRtfCheckBox.isSelected() != settings.isProvideRtf();
+           || myCopyRtfCheckBox.isSelected() != settings.isProvideRtf()
+           || myCopyHtmlCheckBox.isSelected() != settings.isProvideHtml();
   }
 
   @Override
@@ -94,6 +97,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     settings.setDebugProcessing(myDebugProcessingCheckBox.isSelected());
     settings.setStripIndents(myStripIndentsCheckBox.isSelected());
     settings.setProvideRtf(myCopyRtfCheckBox.isSelected());
+    settings.setProvideHtml(myCopyHtmlCheckBox.isSelected());
   }
 
   @Override
@@ -114,6 +118,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     myDebugProcessingCheckBox.setSelected(settings.isDebugProcessing());
     myStripIndentsCheckBox.setSelected(settings.isStripIndents());
     myCopyRtfCheckBox.setSelected(settings.isProvideRtf());
+    myCopyHtmlCheckBox.setSelected(settings.isProvideHtml());
   }
 
   @Override
@@ -123,6 +128,7 @@ public class CopyOnSteroidsConfigurable extends BaseConfigurable {
     myColorsSchemeComboBox = null;
     myDebugProcessingCheckBox = null; 
     myStripIndentsCheckBox = null; 
-    myCopyRtfCheckBox = null; 
+    myCopyRtfCheckBox = null;
+    myCopyHtmlCheckBox = null;
   }
 }

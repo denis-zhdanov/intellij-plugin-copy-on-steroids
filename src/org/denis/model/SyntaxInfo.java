@@ -19,16 +19,19 @@ public class SyntaxInfo implements Serializable {
 
   private final int myDefaultForeground;
   private final int myDefaultBackground;
+  private final int mySingleFontSize;
 
   public SyntaxInfo(@NotNull List<OutputInfo> infos,
                     int defaultForeground,
                     int defaultBackground,
+                    int singleFontSize,
                     @NotNull FontNameRegistry fontNameRegistry,
                     @NotNull ColorRegistry colorRegistry)
   {
     myOutputInfos = infos;
     myDefaultForeground = defaultForeground;
     myDefaultBackground = defaultBackground;
+    mySingleFontSize = singleFontSize;
     myFontNameRegistry = fontNameRegistry;
     myColorRegistry = colorRegistry;
   }
@@ -54,6 +57,14 @@ public class SyntaxInfo implements Serializable {
 
   public int getDefaultBackground() {
     return myDefaultBackground;
+  }
+
+  /**
+   * @return    positive value if all tokens have the same font size (returned value);
+   *            non-positive value otherwise
+   */
+  public int getSingleFontSize() {
+    return mySingleFontSize;
   }
 
   @Override

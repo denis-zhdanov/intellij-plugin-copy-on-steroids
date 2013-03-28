@@ -23,6 +23,7 @@ public class CopyOnSteroidSettings implements PersistentStateComponent<CopyOnSte
 
   private String  mySchemeName = ACTIVE_GLOBAL_SCHEME_MARKER;
   private boolean myProvideRtf = true;
+  private boolean myProvideHtml = true;
   private boolean myStripIndents = true;
   private boolean myDebugProcessing;
 
@@ -80,6 +81,14 @@ public class CopyOnSteroidSettings implements PersistentStateComponent<CopyOnSte
 
   public void setProvideRtf(boolean provideRtf) {
     myProvideRtf = provideRtf;
+  }
+
+  public boolean isProvideHtml() {
+    return myProvideHtml;
+  }
+
+  public void setProvideHtml(boolean provideHtml) {
+    myProvideHtml = provideHtml;
   }
 
   public boolean isStripIndents() {

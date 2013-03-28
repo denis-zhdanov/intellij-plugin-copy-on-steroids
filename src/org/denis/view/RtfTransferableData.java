@@ -1,23 +1,14 @@
 package org.denis.view;
 
-import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.ide.CopyPasteManager;
-import com.intellij.util.StringBuilderSpinAllocator;
 import org.denis.model.*;
 import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Serializable;
 
-public class RtfTransferableData extends InputStream implements TextBlockTransferableData, Serializable {
+public class RtfTransferableData extends AbstractSyntaxAwareTransferableData {
 
   private static final Logger LOG = Logger.getInstance("#" + RtfTransferableData.class.getName());
 
@@ -33,12 +24,8 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
   @NotNull private static final String ITALIC        = "\\i";
   @NotNull private static final String PLAIN         = "\\plain\n";
 
-  @NotNull private final SyntaxInfo mySyntaxInfo;
-
-  @Nullable private transient InputStream myDelegate;
-
   public RtfTransferableData(@NotNull SyntaxInfo syntaxInfo) {
-    mySyntaxInfo = syntaxInfo;
+    super(syntaxInfo);
   }
 
   @Override
@@ -47,81 +34,29 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
   }
 
   @Override
-  public int getOffsetCount() {
-    return 0;
-  }
-
-  @Override
-  public int getOffsets(int[] offsets, int index) {
-    return index;
-  }
-
-  @Override
-  public int setOffsets(int[] offsets, int index) {
-    return index;
-  }
-
-  @Override
-  public int read() throws IOException {
-    return getDelegate().read();
-  }
-
-  @Override
-  public int read(@NotNull byte[] b, int off, int len) throws IOException {
-    return getDelegate().read(b, off, len);
-  }
-
-  @Override
-  public void close() throws IOException {
-    myDelegate = null;
-  }
-
-  @NotNull
-  private InputStream getDelegate() {
-    if (myDelegate != null) {
-      return myDelegate;
-    }
-    Transferable contents = CopyPasteManager.getInstance().getContents();
-    final String rawText;
-    assert contents != null;
-    try {
-      rawText = (String)contents.getTransferData(DataFlavor.stringFlavor);
-    }
-    catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-
-    final StringBuilder buffer = StringBuilderSpinAllocator.alloc();
-    try {
-      header(buffer, new Runnable() {
-        @Override
-        public void run() {
-          rectangularBackground(buffer, new Runnable() {
-            @Override
-            public void run() {
-              content(buffer, rawText);
-            }
-          }); 
-        }
-      });
-      String s = buffer.toString();
-      if (CopyOnSteroidSettings.getInstance().isDebugProcessing()) {
-        LOG.info("RTF text: \n'" + s + "'");
+  protected void build(@NotNull final SyntaxInfo syntaxInfo, @NotNull final String rawText, @NotNull final StringBuilder holder) {
+    header(syntaxInfo, holder, new Runnable() {
+      @Override
+      public void run() {
+        rectangularBackground(syntaxInfo, holder, new Runnable() {
+          @Override
+          public void run() {
+            content(syntaxInfo, holder, rawText);
+          }
+        });
       }
-      myDelegate = new ByteArrayInputStream(s.getBytes());
-      return myDelegate;
-    }
-    finally {
-      StringBuilderSpinAllocator.dispose(buffer);
-    }
+    });
+    if (CopyOnSteroidSettings.getInstance().isDebugProcessing()) {
+      LOG.info("RTF text: \n'" + holder + "'");
+    } 
   }
 
-  private void header(@NotNull StringBuilder buffer, @NotNull Runnable next) {
+  private static void header(@NotNull SyntaxInfo syntaxInfo, @NotNull StringBuilder buffer, @NotNull Runnable next) {
     buffer.append(HEADER_PREFIX);
 
     // Color table.
     buffer.append("{\\colortbl;");
-    ColorRegistry colorRegistry = mySyntaxInfo.getColorRegistry();
+    ColorRegistry colorRegistry = syntaxInfo.getColorRegistry();
     for (int id : colorRegistry.getAllIds()) {
       Color color = colorRegistry.dataById(id);
       buffer.append(String.format("\\red%d\\green%d\\blue%d;", color.getRed(), color.getGreen(), color.getBlue()));
@@ -130,7 +65,7 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
     
     // Font table.
     buffer.append("{\\fonttbl");
-    FontNameRegistry fontNameRegistry = mySyntaxInfo.getFontNameRegistry();
+    FontNameRegistry fontNameRegistry = syntaxInfo.getFontNameRegistry();
     for (int id : fontNameRegistry.getAllIds()) {
       String fontName = fontNameRegistry.dataById(id);
       buffer.append(String.format("{\\f%d %s;}", id, fontName));
@@ -141,22 +76,23 @@ public class RtfTransferableData extends InputStream implements TextBlockTransfe
     buffer.append(HEADER_SUFFIX);
   }
 
-  private void rectangularBackground(@NotNull StringBuilder buffer, @NotNull Runnable next) {
-    buffer.append("\n\\s0\\box\\brdrhair\\brdrcf").append(mySyntaxInfo.getDefaultForeground()).append("\\brsp317");
-    saveBackground(buffer, mySyntaxInfo.getDefaultBackground());
+  private static void rectangularBackground(@NotNull SyntaxInfo syntaxInfo, @NotNull StringBuilder buffer, @NotNull Runnable next) {
+    buffer.append("\n\\s0\\box\\brdrhair\\brdrcf").append(syntaxInfo.getDefaultForeground()).append("\\brsp317").append("\\cbpat")
+      .append(syntaxInfo.getDefaultBackground());
+    saveBackground(buffer, syntaxInfo.getDefaultBackground());
     next.run();
     buffer.append("\\par");
   }
 
-  private void content(@NotNull StringBuilder buffer, @NotNull String rawText) {
+  private static void content(@NotNull SyntaxInfo syntaxInfo, @NotNull StringBuilder buffer, @NotNull String rawText) {
     MyVisitor visitor = new MyVisitor(buffer, rawText);
-    for (OutputInfo info : mySyntaxInfo.getOutputInfos()) {
+    for (OutputInfo info : syntaxInfo.getOutputInfos()) {
       info.invite(visitor);
     }
   }
 
   private static void saveBackground(@NotNull StringBuilder buffer, int id) {
-    buffer.append(String.format("\\cbpat%1$d\\cb%1$d", id));
+    buffer.append("\\cb").append(id);
   }
 
   private static void saveForeground(@NotNull StringBuilder buffer, int id) {

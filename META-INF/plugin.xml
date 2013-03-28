@@ -1,7 +1,7 @@
 <idea-plugin version="2">
   <id>copy.on.steroids</id>
   <name>'Copy' on steroids</name>
-  <version>2.4</version>
+  <version>3.0</version>
   <vendor email="denzhdanov@gmail.com">Denis Zhdanov</vendor>
 
   <description><![CDATA[
@@ -10,8 +10,8 @@
 
   <change-notes><![CDATA[
   <ul>
-  <li>added ability to debug the processing (a checkbox at the plugin settings, the info is written to idea.log);</li>
-  <li>corrected text offsets calculation;</li>
+  <li>Simple HTML output is provided;</li>
+  <li>Don't highlight syntax errors;</li>
   </ul>
   ]]></change-notes>
 
@@ -31,6 +31,7 @@
                              id="copy.on.steroids"
                              displayName="'Copy' on Steroids"/>
     <copyPastePostProcessor implementation="org.denis.RtfCopyPasteProcessor"/>
+    <copyPastePostProcessor implementation="org.denis.HtmlCopyPasteProcessor"/>
   </extensions>
 
 </idea-plugin>

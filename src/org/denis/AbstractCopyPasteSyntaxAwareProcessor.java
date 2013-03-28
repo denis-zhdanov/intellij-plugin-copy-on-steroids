@@ -23,6 +23,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.TokenType;
 import com.intellij.util.containers.ContainerUtilRt;
 import org.denis.model.*;
 import org.denis.settings.CopyOnSteroidSettings;
@@ -38,6 +39,9 @@ import java.util.Queue;
 public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockTransferableData> implements CopyPastePostProcessor<T> {
 
   private static final Logger LOG = Logger.getInstance("#" + AbstractCopyPasteSyntaxAwareProcessor.class.getName());
+  
+  private static ThreadLocal<Pair<Long, SyntaxInfo>> CACHED = new ThreadLocal<Pair<Long, SyntaxInfo>>();
+  private static final long CACHE_TTL_MS = 100;
 
   @SuppressWarnings("unchecked")
   @Nullable
@@ -46,6 +50,11 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     CopyOnSteroidSettings settings = CopyOnSteroidSettings.getInstance();
     if (!isEnabled(settings) || startOffsets.length <= 0) {
       return null;
+    }
+
+    Pair<Long, SyntaxInfo> pair = CACHED.get();
+    if (pair != null && System.currentTimeMillis() - pair.first < CACHE_TTL_MS) {
+      return build(pair.second);
     }
 
     SelectionModel selectionModel = editor.getSelectionModel();
@@ -113,6 +122,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
     SyntaxInfo syntaxInfo = context.finish();
     logSyntaxInfo(syntaxInfo);
+    CACHED.set(Pair.create(System.currentTimeMillis(), syntaxInfo));
     return build(syntaxInfo);
   }
 
@@ -332,6 +342,11 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
           return false;
         }
 
+        if (highlighterIterator.getTokenType() == TokenType.BAD_CHARACTER) {
+          // Skip syntax errors.
+          highlighterIterator.advance();
+          return updateCached();
+        }
         TextAttributes attributes = highlighterIterator.getTextAttributes();
         int tokenEnd = Math.min(highlighterIterator.getEnd(), endOffset);
         myCached = SegmentInfo.produce(attributes, editor, tokenStart, tokenEnd);
@@ -486,7 +501,9 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     private int myFontSize    = -1;
     private int myStartOffset = -1;
     private int myOffsetShift = -1;
-
+    
+    private int mySingleFontSize;
+    
     private int myIndentSymbolsToStripAtCurrentLine;
 
     Context(@NotNull Editor editor, @NotNull EditorColorsScheme scheme, int indentSymbolsToStrip) {
@@ -537,6 +554,12 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
 
     private void processFontSize(@NotNull SegmentInfo info) {
+      if (mySingleFontSize == 0) {
+        mySingleFontSize = info.fontSize;
+      }
+      else if (mySingleFontSize > 0 && mySingleFontSize != info.fontSize) {
+        mySingleFontSize = -1;
+      }
       if (info.fontSize != myFontSize) {
         addTextIfPossible(info.startOffset);
         outputInfos.add(new FontSize(info.fontSize));
@@ -626,7 +649,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       int background = myColorRegistry.getId(myDefaultBackground);
       myColorRegistry.seal();
       myFontNameRegistry.seal();
-      return new SyntaxInfo(outputInfos, foreground, background, myFontNameRegistry, myColorRegistry);
+      return new SyntaxInfo(outputInfos, foreground, background, mySingleFontSize, myFontNameRegistry, myColorRegistry);
     }
   }
 
