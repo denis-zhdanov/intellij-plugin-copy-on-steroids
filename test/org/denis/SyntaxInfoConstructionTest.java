@@ -135,6 +135,20 @@ public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase 
 
     assertEquals(expected, getSyntaxInfoForRegularSelection().getOutputInfos());
   }
+
+  public void testIncorrectFirstLineCalculationOffset() {
+    String text =
+      "\"tr\" #> template.statusList.sortBy(_.index).map(fromStatus =>";
+    myFixture.configureByText("test.java", text);
+    int start = text.indexOf("template");
+    int end = text.indexOf("(");
+    myFixture.getEditor().getSelectionModel().setSelection(start, end);
+    
+    List<OutputInfo> expected = Arrays.asList(
+      new FontFamilyName(1), new FontStyle(Font.PLAIN), new FontSize(12), new Text(0, 26)
+    );
+    assertEquals(expected, getSyntaxInfoForRegularSelection().getOutputInfos());
+  }
   
   @NotNull
   private static List<OutputInfo> shiftText(@NotNull List<OutputInfo> base, final int offsetShift) {

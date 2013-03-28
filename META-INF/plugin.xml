@@ -11,6 +11,7 @@
   <change-notes><![CDATA[
   <ul>
   <li>added ability to debug the processing (a checkbox at the plugin settings, the info is written to idea.log);</li>
+  <li>corrected text offsets calculation;</li>
   </ul>
   ]]></change-notes>
 

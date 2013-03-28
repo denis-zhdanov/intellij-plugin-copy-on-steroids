@@ -129,12 +129,15 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
     
     StringBuilder buffer = new StringBuilder();
-    CharSequence text = editor.getDocument().getCharsSequence();
+    Document document = editor.getDocument();
+    CharSequence text = document.getCharsSequence();
     for (int i = 0; i < startOffsets.length; i++) {
       int start = startOffsets[i];
+      int lineStart = document.getLineStartOffset(document.getLineNumber(start));
       int end = endOffsets[i];
-      buffer.append("    region #").append(i).append(": ").append(start).append('-').append(end).append(": \n'")
-        .append(text.subSequence(start, end)).append("'\n");
+      int lineEnd = document.getLineEndOffset(document.getLineNumber(end));
+      buffer.append("    region #").append(i).append(": ").append(start).append('-').append(end).append(", text at range ")
+        .append(lineStart).append('-').append(lineEnd).append(": \n'").append(text.subSequence(lineStart, lineEnd)).append("'\n");
     }
     if (buffer.length() > 0) {
       buffer.setLength(buffer.length() - 1);
@@ -174,7 +177,13 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       if (nonWsOffset >= lineEndOffset) {
         continue; // Blank line
       }
-      final int startOffsetToUse = line == startLine ? nonWsOffset : startOffset;
+      final int startOffsetToUse;
+      if (line == startLine && nonWsOffset > startOffset) {
+        startOffsetToUse = nonWsOffset;
+      }
+      else {
+        startOffsetToUse = startOffset;
+      }
       return Pair.create(startOffsetToUse, nonWsOffset - lineStartOffset);
     }
     return Pair.create(startOffset, 0);
