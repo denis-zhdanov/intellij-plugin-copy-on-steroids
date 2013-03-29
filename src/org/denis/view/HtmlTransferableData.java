@@ -1,5 +1,6 @@
 package org.denis.view;
 
+import com.intellij.util.StringBuilderSpinAllocator;
 import org.denis.model.*;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,7 +17,7 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
 
   private static final long serialVersionUID = 1L;
 
-  private StringBuilder    myBuffer;
+  private StringBuilder    myResultBuffer;
   private String           myRawText;
   private ColorRegistry    myColorRegistry;
   private FontNameRegistry myFontNameRegistry;
@@ -40,13 +41,13 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
 
   @Override
   protected void build(@NotNull SyntaxInfo syntaxInfo, @NotNull String rawText, @NotNull StringBuilder holder) {
-    myBuffer = holder;
+    myResultBuffer = holder;
     myRawText = rawText;
     myColorRegistry = syntaxInfo.getColorRegistry();
     myFontNameRegistry = syntaxInfo.getFontNameRegistry();
     try {
-      myBuffer.append("<div style='border:1px inset;padding:2%;'>")
-              .append("<pre style='margin:0;padding:6px;background-color:")
+      myResultBuffer.append("<div style=\"border:1px inset;padding:2%;\">")
+              .append("<pre style=\"margin:0;padding:6px;background-color:")
 //              .append("<pre style='height:30%;overflow:auto;margin:0;padding:6px;background-color:")
               .append(color(syntaxInfo.getDefaultBackground())).append(';');
       if (myFontNameRegistry.size() == 1) {
@@ -58,21 +59,38 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
         appendFontSizeRule(fontSize);
         myIgnoreFontSize = true;
       }
-      myBuffer.append("'>"); 
+      myResultBuffer.append("\" bgcolor=\"").append(color(syntaxInfo.getDefaultBackground())).append("\">");
       
       for (OutputInfo info : syntaxInfo.getOutputInfos()) {
         info.invite(this);
       }
-      myBuffer.append("</pre>");
-//      myBuffer.append("</pre></div>");
+      myResultBuffer.append("</pre></div>");
     }
     finally {
-      myBuffer = null;
+      myResultBuffer = null;
       myRawText = null;
       myColorRegistry = null;
       myFontNameRegistry = null;
       myIgnoreFontSize = false;
     }
+  }
+
+  private void defineForeground(int id, @NotNull StringBuilder styleBuffer, @NotNull StringBuilder closeTagBuffer) {
+    myResultBuffer.append("<font color=\"").append(color(id)).append("\">");
+    styleBuffer.append("color:").append(color(id)).append(";");
+    closeTagBuffer.append("</font");
+  }
+
+  private void defineBold(@NotNull StringBuilder styleBuffer, @NotNull StringBuilder closeTagBuffer) {
+    myResultBuffer.append("<b>");
+    styleBuffer.append("font-weight:bold;");
+    closeTagBuffer.insert(0, "</b>");
+  }
+
+  private void defineItalic(@NotNull StringBuilder styleBuffer, @NotNull StringBuilder closeTagBuffer) {
+    myResultBuffer.append("<i>");
+    styleBuffer.append("font-style:italic;");
+    closeTagBuffer.insert(0, "</i>");
   }
   
   @NotNull
@@ -82,13 +100,13 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
   }
 
   private void appendFontFamilyRule(int fontFamilyId) {
-    myBuffer.append("font-family:\"").append(myFontNameRegistry.dataById(fontFamilyId)).append("\";"); 
+    myResultBuffer.append("font-family:'").append(myFontNameRegistry.dataById(fontFamilyId)).append("';"); 
   }
 
   private void appendFontSizeRule(int fontSize) {
-    myBuffer.append("font-size:").append(fontSize).append(';');
+    myResultBuffer.append("font-size:").append(fontSize).append(';');
   }
-  
+
   @Override
   public void visit(@NotNull Text text) {
     boolean formattedText = myForeground > 0 || myBackground > 0 || myFontFamily > 0 || myFontSize > 0 || myBold || myItalic;
@@ -96,40 +114,49 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
       escapeAndAdd(text.getStartOffset(), text.getEndOffset());
       return;
     }
-    
-    myBuffer.append("<span style='");
-    if (myForeground > 0) {
-      myBuffer.append("color:").append(color(myForeground)).append(";");
+
+    StringBuilder styleBuffer = StringBuilderSpinAllocator.alloc();
+    StringBuilder closeTagBuffer = StringBuilderSpinAllocator.alloc();
+    try {
+      if (myBold) {
+        defineBold(styleBuffer, closeTagBuffer);
+      }
+      if (myItalic) {
+        defineItalic(styleBuffer, closeTagBuffer);
+      }
+      if (myForeground > 0) {
+        defineForeground(myForeground, styleBuffer, closeTagBuffer);
+      }
+      if (myBackground > 0) {
+        myResultBuffer.append("background-color:").append(color(myBackground)).append(";");
+      }
+      if (myFontFamily > 0) {
+        appendFontFamilyRule(myFontFamily);
+      }
+      if (myFontSize > 0) {
+        appendFontSizeRule(myFontSize);
+      }
+      myResultBuffer.append("<span style=\"");
+      myResultBuffer.append(styleBuffer);
+      myResultBuffer.append("\">");
+      escapeAndAdd(text.getStartOffset(), text.getEndOffset());
+      myResultBuffer.append("</span>");
+      myResultBuffer.append(closeTagBuffer);
     }
-    if (myBackground > 0) {
-      myBuffer.append("background-color:").append(color(myBackground)).append(";");
+    finally {
+      StringBuilderSpinAllocator.dispose(styleBuffer);
+      StringBuilderSpinAllocator.dispose(closeTagBuffer);
     }
-    if (myFontFamily > 0) {
-      appendFontFamilyRule(myFontFamily);
-    }
-    if (myFontSize > 0) {
-      appendFontSizeRule(myFontSize);
-    }
-    if (myBold) {
-      myBuffer.append("font-weight:bold;");
-    }
-    if (myItalic) {
-      myBuffer.append("font-style:italic;");
-    }
-    myBuffer.append("'>");
-    escapeAndAdd(text.getStartOffset(), text.getEndOffset());
-    myBuffer.append("</span>");
   }
 
   private void escapeAndAdd(int start, int end) {
     for (int i = start; i < end; i++) {
       char c = myRawText.charAt(i);
       switch (c) {
-        case '<': myBuffer.append("&lt;"); break;
-        case '>': myBuffer.append("&gt;"); break;
-        case '&': myBuffer.append("&amp;"); break;
-        case '\n': myBuffer.append("<br/>"); break;
-        default: myBuffer.append(c);
+        case '<': myResultBuffer.append("&lt;"); break;
+        case '>': myResultBuffer.append("&gt;"); break;
+        case '&': myResultBuffer.append("&amp;"); break;
+        default: myResultBuffer.append(c);
       }
     }
   }

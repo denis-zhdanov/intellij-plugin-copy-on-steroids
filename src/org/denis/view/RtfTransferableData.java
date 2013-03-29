@@ -1,16 +1,12 @@
 package org.denis.view;
 
-import com.intellij.openapi.diagnostic.Logger;
 import org.denis.model.*;
-import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 
 public class RtfTransferableData extends AbstractSyntaxAwareInputStreamTransferableData {
-
-  private static final Logger LOG = Logger.getInstance("#" + RtfTransferableData.class.getName());
 
   private static final long serialVersionUID = 1L;
 
@@ -46,9 +42,6 @@ public class RtfTransferableData extends AbstractSyntaxAwareInputStreamTransfera
         });
       }
     });
-    if (CopyOnSteroidSettings.getInstance().isDebugProcessing()) {
-      LOG.info("RTF text: \n'" + holder + "'");
-    } 
   }
 
   private static void header(@NotNull SyntaxInfo syntaxInfo, @NotNull StringBuilder buffer, @NotNull Runnable next) {

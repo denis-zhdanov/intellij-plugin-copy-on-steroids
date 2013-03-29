@@ -1,9 +1,11 @@
 package org.denis.view;
 
 import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.util.StringBuilderSpinAllocator;
 import org.denis.model.SyntaxInfo;
+import org.denis.settings.CopyOnSteroidSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,6 +23,8 @@ import java.io.Serializable;
 public abstract class AbstractSyntaxAwareInputStreamTransferableData extends InputStream
   implements TextBlockTransferableData, Serializable
 {
+
+  private static final Logger LOG = Logger.getInstance("#" + AbstractSyntaxAwareInputStreamTransferableData.class.getName());
 
   @NotNull private final SyntaxInfo mySyntaxInfo;
 
@@ -78,7 +82,11 @@ public abstract class AbstractSyntaxAwareInputStreamTransferableData extends Inp
     final StringBuilder buffer = StringBuilderSpinAllocator.alloc();
     try {
       build(mySyntaxInfo, rawText, buffer);
-      myDelegate = new ByteArrayInputStream(buffer.toString().getBytes());
+      String s = buffer.toString();
+      if (CopyOnSteroidSettings.getInstance().isDebugProcessing()) {
+        LOG.info("Resulting text: \n'" + s + "'");
+      }
+      myDelegate = new ByteArrayInputStream(s.getBytes());
       return myDelegate;
     }
     finally {
