@@ -81,6 +81,12 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
     closeTagBuffer.insert(0, "</font>");
   }
 
+  private void defineBackground(int id, @NotNull StringBuilder styleBuffer, @NotNull StringBuilder closeTagBuffer) {
+    myResultBuffer.append("<font bgcolor=\"").append(color(id)).append("\">");
+    styleBuffer.append("background-color:").append(color(id)).append(";");
+    closeTagBuffer.insert(0, "</font>");
+  }
+
   private void defineBold(@NotNull StringBuilder styleBuffer, @NotNull StringBuilder closeTagBuffer) {
     myResultBuffer.append("<b>");
     styleBuffer.append("font-weight:bold;");
@@ -122,7 +128,7 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
         defineForeground(myForeground, styleBuffer, closeTagBuffer);
       }
       if (myBackground > 0) {
-        myResultBuffer.append("background-color:").append(color(myBackground)).append(";");
+        defineBackground(myBackground, styleBuffer, closeTagBuffer);
       }
       if (myBold) {
         defineBold(styleBuffer, closeTagBuffer);
