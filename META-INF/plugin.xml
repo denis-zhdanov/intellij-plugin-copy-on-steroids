@@ -1,7 +1,7 @@
 <idea-plugin version="2">
   <id>copy.on.steroids</id>
   <name>'Copy' on steroids</name>
-  <version>3.0</version>
+  <version>3.1</version>
   <vendor email="denzhdanov@gmail.com">Denis Zhdanov</vendor>
 
   <description><![CDATA[
@@ -10,9 +10,8 @@
 
   <change-notes><![CDATA[
   <ul>
-  <li>simple HTML output is provided;</li>
-  <li>don't highlight syntax errors;</li>
-  <li>output info uses font name configured at the target 'colors & fonts' scheme;</li>
+  <li>background colors processing is corrected (on javadoc sample);</li>
+  <li>tests are updated;</li>
   </ul>
   ]]></change-notes>
 

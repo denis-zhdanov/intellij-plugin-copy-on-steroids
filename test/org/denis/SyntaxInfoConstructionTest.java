@@ -99,43 +99,6 @@ public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase 
     assertEquals(shiftText(expected, 4), getSyntaxInfoForRegularSelection().getOutputInfos());
   }
 
-  public void testJavaOverride() {
-    String text =
-      "package org;\n" +
-      "\n" +
-      "class SampleTest {\n" +
-      "\n" +
-      "    @Override\n" +
-      "    public String toString() {\n" +
-      "        return null;\n" +
-      "    }\n" +
-      "}\n";
-    myFixture.configureByText("test.java", text);
-
-    myFixture.getEditor().getSelectionModel().setSelection(0, text.length());
-
-    List<OutputInfo> expected = Arrays.asList(
-      new Foreground(1), new FontFamilyName(1), new FontStyle(Font.BOLD), new FontSize(12), new Text(0, 8),
-      new Foreground(2), new FontStyle(Font.PLAIN), new Text(8, 13),
-      new Text(13, 14),
-      new Foreground(1), new FontStyle(Font.BOLD), new Text(14, 20),
-      new Foreground(2), new FontStyle(Font.PLAIN), new Text(20, 33),
-      new Text(33, 34),
-      new Text(34, 38),
-      new Foreground(3), new Text(38, 48),
-      new Text(48, 52),
-      new Foreground(1), new FontStyle(Font.BOLD), new Text(52, 59),
-      new Foreground(2), new FontStyle(Font.PLAIN), new Text(59, 79),
-      new Text(79, 87),
-      new Foreground(1), new FontStyle(Font.BOLD), new Text(87, 98),
-      new Foreground(2), new FontStyle(Font.PLAIN), new Text(98, 100),
-      new Text(100, 106),
-      new Text(106, 108)
-    );
-
-    assertEquals(expected, getSyntaxInfoForRegularSelection().getOutputInfos());
-  }
-
   public void testIncorrectFirstLineCalculationOffset() {
     String text =
       "\"tr\" #> template.statusList.sortBy(_.index).map(fromStatus =>";
@@ -146,6 +109,45 @@ public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase 
     
     List<OutputInfo> expected = Arrays.asList(
       new FontFamilyName(1), new FontStyle(Font.PLAIN), new FontSize(12), new Text(0, 26)
+    );
+    assertEquals(expected, getSyntaxInfoForRegularSelection().getOutputInfos());
+  }
+
+  public void testJavadoc() {
+    String text =
+      "package org;\n" +
+      "\n" +
+      "import java.io.Serializable;\n" +
+      "\n" +
+      "/**\n" +
+      " * Code in <code>here</code>\n" +
+      " * <strong>Hi</strong> man\n" +
+      " * @param <T>\n" +
+      " */\n" +
+      "public interface SampleTest<T> extends Serializable {\n" +
+      "    boolean isNotNull();\n" +
+      "    T getValue();\n" +
+      "}";
+    myFixture.configureByText("test.java", text);
+    int start = text.indexOf("/**");
+    int end = text.indexOf("*/", start);
+    myFixture.getEditor().getSelectionModel().setSelection(start, end);
+    List<OutputInfo> expected = Arrays.asList(
+      new Foreground(1), new FontFamilyName(1), new FontStyle(Font.ITALIC), new FontSize(12), new Text(0, 4),
+      new Text(4, 15),
+      new Background(2), new Text(15, 21),
+      new Background(3), new Text(21, 25),
+      new Background(2), new Text(25, 32),
+      new Background(3), new Text(32, 33),
+      new Text(33, 36),
+      new Background(2), new Text(36, 44),
+      new Background(3), new Text(44, 46),
+      new Background(2), new Text(46, 55),
+      new Background(3), new Text(55, 60),
+      new Text(60, 63),
+      new FontStyle(Font.BOLD + Font.ITALIC), new Text(63, 70),
+      new Foreground(4), new Text(70, 74),
+      new Text(74, 75)
     );
     assertEquals(expected, getSyntaxInfoForRegularSelection().getOutputInfos());
   }
@@ -219,6 +221,12 @@ public class SyntaxInfoConstructionTest extends LightCodeInsightFixtureTestCase 
       @Override
       protected boolean isEnabled(@NotNull CopyOnSteroidSettings settings) {
         return true;
+      }
+
+      @Nullable
+      @Override
+      protected SyntaxInfo getCached() {
+        return null;
       }
     }.collectTransferableData(myFixture.getFile(), editor, startOffsets, endOffsets);
     

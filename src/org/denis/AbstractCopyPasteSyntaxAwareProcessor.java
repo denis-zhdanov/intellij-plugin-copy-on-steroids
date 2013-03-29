@@ -52,9 +52,9 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       return null;
     }
 
-    Pair<Long, SyntaxInfo> pair = CACHED.get();
-    if (pair != null && System.currentTimeMillis() - pair.first < CACHE_TTL_MS) {
-      return build(pair.second);
+    SyntaxInfo cached = getCached();
+    if (cached != null) {
+      return build(cached);
     }
 
     SelectionModel selectionModel = editor.getSelectionModel();
@@ -126,6 +126,15 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     return build(syntaxInfo);
   }
 
+  @Nullable
+  protected SyntaxInfo getCached() {
+    Pair<Long, SyntaxInfo> pair = CACHED.get();
+    if (pair != null && System.currentTimeMillis() - pair.first < CACHE_TTL_MS) {
+      return pair.second;
+    }
+    return null;
+  }
+  
   private static void logInitial(@NotNull Editor editor,
                                  @NotNull int[] startOffsets,
                                  @NotNull int[] endOffsets,
@@ -526,15 +535,15 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         myStartOffset = info.startOffset;
       }
 
-      if (containsWhiteSpacesOnly(info)) {
-        return;
-      }
+      boolean whiteSpacesOnly = containsWhiteSpacesOnly(info);
 
       processBackground(info);
-      processForeground(info);
-      processFontFamilyName(info);
-      processFontStyle(info);
-      processFontSize(info);
+      if (!whiteSpacesOnly) {
+        processForeground(info);
+        processFontFamilyName(info);
+        processFontStyle(info);
+        processFontSize(info);
+      }
     }
 
     private boolean containsWhiteSpacesOnly(@NotNull SegmentInfo info) {
@@ -603,7 +612,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
         Color c = info.background == null ? myDefaultBackground : info.background;
         if (!myBackground.equals(c)) {
           addTextIfPossible(info.startOffset);
-          outputInfos.add(new Background(myColorRegistry.getId(myBackground)));
+          outputInfos.add(new Background(myColorRegistry.getId(c)));
           myBackground = c;
         }
       }
