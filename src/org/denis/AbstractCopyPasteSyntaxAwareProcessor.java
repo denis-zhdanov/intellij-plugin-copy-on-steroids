@@ -460,7 +460,8 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       }
       
       private boolean isInterestedHighlightLayer(int layer) {
-        return layer == HighlighterLayer.SYNTAX || layer == HighlighterLayer.ADDITIONAL_SYNTAX;
+        return layer != HighlighterLayer.CARET_ROW && layer != HighlighterLayer.SELECTION && layer != HighlighterLayer.ERROR
+               && layer != HighlighterLayer.WARNING;
       }
     };
   }
