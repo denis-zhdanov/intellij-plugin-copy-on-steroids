@@ -78,7 +78,7 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
   private void defineForeground(int id, @NotNull StringBuilder styleBuffer, @NotNull StringBuilder closeTagBuffer) {
     myResultBuffer.append("<font color=\"").append(color(id)).append("\">");
     styleBuffer.append("color:").append(color(id)).append(";");
-    closeTagBuffer.append("</font");
+    closeTagBuffer.insert(0, "</font>");
   }
 
   private void defineBold(@NotNull StringBuilder styleBuffer, @NotNull StringBuilder closeTagBuffer) {
@@ -118,17 +118,17 @@ public class HtmlTransferableData extends AbstractSyntaxAwareReaderTransferableD
     StringBuilder styleBuffer = StringBuilderSpinAllocator.alloc();
     StringBuilder closeTagBuffer = StringBuilderSpinAllocator.alloc();
     try {
-      if (myBold) {
-        defineBold(styleBuffer, closeTagBuffer);
-      }
-      if (myItalic) {
-        defineItalic(styleBuffer, closeTagBuffer);
-      }
       if (myForeground > 0) {
         defineForeground(myForeground, styleBuffer, closeTagBuffer);
       }
       if (myBackground > 0) {
         myResultBuffer.append("background-color:").append(color(myBackground)).append(";");
+      }
+      if (myBold) {
+        defineBold(styleBuffer, closeTagBuffer);
+      }
+      if (myItalic) {
+        defineItalic(styleBuffer, closeTagBuffer);
       }
       if (myFontFamily > 0) {
         appendFontFamilyRule(myFontFamily);
