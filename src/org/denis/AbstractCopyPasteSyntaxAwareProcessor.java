@@ -41,7 +41,7 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
   private static final Logger LOG = Logger.getInstance("#" + AbstractCopyPasteSyntaxAwareProcessor.class.getName());
   
   private static ThreadLocal<Pair<Long, SyntaxInfo>> CACHED = new ThreadLocal<Pair<Long, SyntaxInfo>>();
-  private static final long CACHE_TTL_MS = 0;
+  private static final long CACHE_TTL_MS = 100;
 
   @SuppressWarnings("unchecked")
   @Nullable
