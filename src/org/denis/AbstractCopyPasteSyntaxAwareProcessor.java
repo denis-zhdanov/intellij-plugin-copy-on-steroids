@@ -52,9 +52,12 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
       return null;
     }
 
-    SyntaxInfo cached = getCached();
-    if (cached != null) {
-      return build(cached);
+    //Use cache only for multi-line selections only. Because single-line cut can be really fast with shift+del.
+    if (endOffsets.length > 1) {
+      SyntaxInfo cached = getCached();
+      if (cached != null) {
+        return build(cached);
+      }
     }
 
     SelectionModel selectionModel = editor.getSelectionModel();
@@ -122,7 +125,9 @@ public abstract class AbstractCopyPasteSyntaxAwareProcessor<T extends TextBlockT
     }
     SyntaxInfo syntaxInfo = context.finish();
     logSyntaxInfo(syntaxInfo);
-    CACHED.set(Pair.create(System.currentTimeMillis(), syntaxInfo));
+    if (endOffsets.length > 1) {
+      CACHED.set(Pair.create(System.currentTimeMillis(), syntaxInfo));
+    }
     return build(syntaxInfo);
   }
 
